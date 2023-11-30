@@ -1,0 +1,20 @@
+{
+  "name": "ql-scripts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@lzwme/fe-utils": "^1.5.6",
+    "commander": "^11.1.0",
+    "enquirer": "^2.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0"
+  }
+}

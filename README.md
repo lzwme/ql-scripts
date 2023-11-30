@@ -1,0 +1,34 @@
+# 青龙面板自用脚本
+
+## 安装
+
+### 命令行方式
+
+```bash
+# ql repo <repo_url> <whitelist> <blacklist> <dependence> <branch> <extensions>
+ql repo https://github.com/lzwme/ql_scripts.git "active" "backup|todo|deprecated" "utils"
+cd /ql/scripts
+pnpm add @lzwme/fe-utils commander enquirer
+```
+
+### 面板方式
+
+`订阅管理 -> 创建订阅`，表单填写参考：
+
+- 名称：`lzwme/ql_scripts`
+- 链接：`https://github.com/lzwme/ql_scripts.git`
+- 分支：`main`
+- 定时：`0 0 1 * * *`
+- 白名单：`active`
+- 黑名单：`backup|todo|deprecated`
+- 依赖文件：`utils`
+- 执行后：`pnpm add @lzwme/fe-utils commander enquirer`
+
+## 其他相关
+
+### 获取指定位置的经纬度
+
+- [腾讯位置服务](https://lbs.qq.com/getPoint/)
+- [高德地图坐标拾取器](https://lbs.amap.com/tools/picker)
+- [详细地址解析成经纬度/GPS坐标在线工具](https://www.toolnb.com/tools/areaDataToGps.html)
+- [高德地图拾取器](https://www.toolnb.com/tools/gaodegetmap.html)

@@ -1,0 +1,24 @@
+{
+    "version": "0.0.0",
+    "data": {
+        "I茅台预约": {
+            "appVersion": "1.5.3",
+            "user": [
+                {
+                    "itemCodes": [
+                        "10213",
+                        "10214"
+                    ],
+                    "province": "xx省",
+                    "city": "xx市",
+                    "lng": "",
+                    "lat": "",
+                    "deviceId": "",
+                    "token": "",
+                    "tokenWap": ""
+                }
+            ],
+            "type": "预约类型，默认为最近距离。设置为 max 时查找当前城市最大投放量的店铺预约"
+        }
+    }
+}
