@@ -2,11 +2,13 @@
 
 ## 安装
 
+新增环境变量：`LZWME_QL_CONFIG_FILE`，值为 `/ql/data/scripts/lzwme_ql_config.json`。后续各脚本配置都会从此路径文件读取。
+
 ### 命令行方式
 
 ```bash
 # ql repo <repo_url> <whitelist> <blacklist> <dependence> <branch> <extensions>
-ql repo https://github.com/lzwme/ql_scripts.git "active" "backup|todo|deprecated" "utils"
+ql repo https://github.com/lzwme/ql_scripts.git "ql_|ql-" "backup|todo|deprecated" "utils"
 cd /ql/scripts
 pnpm add @lzwme/fe-utils commander enquirer
 ```
