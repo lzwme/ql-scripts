@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2023-12-02 13:58:21
+ * @LastEditTime: 2023-12-05 10:54:18
  * @Description:
  */
 import { LiteStorage, Request } from '@lzwme/fe-utils';
@@ -24,22 +24,21 @@ export function findFile(filename: string, dirs = [process.cwd(), __dirname]) {
   return '';
 }
 
-export function getLiteStorage(uuid: string, filepath = process.env.LZWME_QL_CONFIG_FILE) {
+export function getLiteStorage<T extends object = Record<string, any>>(uuid: string, filepath = process.env.LZWME_QL_CONFIG_FILE) {
   if (!uuid) throw Error('请指定 uuid');
 
   if (!filepath || !existsSync(filepath)) {
     filepath = findFile('lzwme_ql_config.json') || 'lzwme_ql_config.json';
   }
 
-  return new LiteStorage({ filepath: resolve(process.cwd(), filepath), uuid });
+  return new LiteStorage<T>({ filepath: resolve(process.cwd(), filepath), uuid });
 }
 
-export async function sendNnotify(text: string, body: string, params: Record<string, any> = {}, author = '\n本通知 By：lzwme/ql-scripts') {
-  console.log(`[${text}]`, body);
+export async function sendNotify(text: string, body: string, params: Record<string, any> = {}, author = '\n本通知 By：lzwme/ql-scripts') {
   const notifyFilePath = findFile('sendNotify.js');
   if (notifyFilePath) {
     await require(notifyFilePath).sendNotify(text, body, params, author);
-  }
+  } else console.log(`[${text}]`, body);
 }
 
 /** 根据指定的位置返回附近位置及经纬度列表 */
