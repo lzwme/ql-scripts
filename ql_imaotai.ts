@@ -89,7 +89,9 @@ const imaotai = {
   async mtAdd(itemId: string, shopId: string, sessionId: string, userId: string) {
     const MT_K = Date.now();
     const { data: mtv } = await req.get<string>(
-      `http://82.157.10.108:8086/get_mtv?DeviceID=${this.user.deviceId}&MTk=${MT_K}&version=${config.appVersion}&key=yaohuo`
+      `http://82.157.10.108:8086/get_mtv?DeviceID=${this.user.deviceId}&MTk=${MT_K}&version=${config.appVersion}&key=yaohuo`,
+      {},
+      { 'content-type': 'text/html' }
     );
     const headers = {
       ...this.getHeaders({}),
@@ -140,7 +142,7 @@ const imaotai = {
 
     for (const shop of data.shops) {
       const shopInfo = this.mall[shop.shopId];
-      const item = shop.items.find((d) => d.itemId == itemId);
+      const item = shop.items.find(d => d.itemId == itemId);
 
       if (!item || shopInfo?.cityName !== city) continue;
 
@@ -219,7 +221,7 @@ const imaotai = {
   },
   signature(data: Record<string, unknown>, timestamp = Date.now().toString()) {
     const keys = Object.keys(data).sort();
-    const text = SALT + keys.map((k) => data[k]).join('') + timestamp;
+    const text = SALT + keys.map(k => data[k]).join('') + timestamp;
     return md5(text);
   },
   /** 获取手机验证码 */
@@ -281,49 +283,54 @@ const imaotai = {
       for (const user of inputData.user) {
         userCount++;
 
-        this.user = assign({} as any, defautUser, user, {
-          header: {
-            app: {
-              'MT-Token': user.token,
+        try {
+          this.user = assign({} as any, defautUser, user, {
+            header: {
+              app: {
+                'MT-Token': user.token,
+              },
+              h5: {
+                'MT-Token-Wap': user.tokenWap,
+              },
             },
-            h5: {
-              'MT-Token-Wap': user.tokenWap,
-            },
-          },
-        } as Partial<typeof defautUser>);
+          } as Partial<typeof defautUser>);
 
-        const { userName, userId, mobile } = await this.getUserId();
-        if (!userId) {
-          msgList.push(`第 ${userCount} 个用户 token 失效，请重新登录`);
-          continue;
-        }
+          const { userName, userId, mobile } = await this.getUserId();
+          if (!userId) {
+            msgList.push(`第 ${userCount} 个用户 token 失效，请重新登录`);
+            continue;
+          }
 
-        req.setHeaders({ userId });
-        msgList.push(`第 ${userCount} 个用户【${userName}_${mobile}】开始任务-------------`);
-        const sessionInfo = await this.getSessionId();
-        if (!sessionInfo.sessionId) {
-          msgList.push(`获取 sessionId 失败: ${JSON.stringify(sessionInfo)}`);
-        } else {
-          for (const item of sessionInfo.itemList) {
-            if (user.itemCodes.includes(item.itemCode)) {
-              const shop = await this.getShopItem(sessionInfo.sessionId, item.itemCode, this.user.province, this.user.city);
-              if (shop.shopId) {
-                const shopInfo = this.mall[shop.shopId];
-                const r = await this.mtAdd(item.itemCode, shop.shopId, sessionInfo.sessionId, userId);
-                msgList.push(`选中店铺：【${shopInfo.name}】【${shopInfo.fullAddress}】【投放量：${shop.item!.inventory}】`);
-                msgList.push(`${item.itemCode}_${item.title}------${r}`);
-              } else {
-                msgList.push(`【${item.itemCode}_${item.title}】未获取到可预约的店铺，未能预约`);
+          req.setHeaders({ userId });
+          msgList.push(`第 ${userCount} 个用户【${userName}_${mobile}】开始任务-------------`);
+          const sessionInfo = await this.getSessionId();
+          if (!sessionInfo.sessionId) {
+            msgList.push(`获取 sessionId 失败: ${JSON.stringify(sessionInfo)}`);
+          } else {
+            for (const item of sessionInfo.itemList) {
+              if (user.itemCodes.includes(item.itemCode)) {
+                const shop = await this.getShopItem(sessionInfo.sessionId, item.itemCode, this.user.province, this.user.city);
+                if (shop.shopId) {
+                  const shopInfo = this.mall[shop.shopId];
+                  const r = await this.mtAdd(item.itemCode, shop.shopId, sessionInfo.sessionId, userId);
+                  msgList.push(`选中店铺：【${shopInfo.name}】【${shopInfo.fullAddress}】【投放量：${shop.item!.inventory}】`);
+                  msgList.push(`${item.itemCode}_${item.title}------${r}`);
+                } else {
+                  msgList.push(`【${item.itemCode}_${item.title}】未获取到可预约的店铺，未能预约`);
+                }
               }
             }
+            const awardMsg = await this.getUserEnergyAward();
+            msgList.push(`领取来耐力值：${awardMsg}`);
           }
-          const awardMsg = await this.getUserEnergyAward();
-          msgList.push(`领取来耐力值：${awardMsg}`);
+        } catch (err) {
+          console.log(err);
+          msgList.push(`[${userCount}]error: ${(err as Error).message || JSON.stringify(err)}`);
         }
       }
     } catch (err) {
       console.log(err);
-      msgList.push((err as Error).message || JSON.stringify(err));
+      msgList.push(`error: ${(err as Error).message || JSON.stringify(err)}`);
     }
 
     await sendNotify('I茅台预约', msgList.join('\n'));
@@ -342,11 +349,11 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
       name: 'mobile',
       message: '请输入登录使用的 11 位手机号码',
       initial: '',
-      validate: (mobile) => /\d{11}/.test(mobile) || '请输入正确的11位手机号码',
+      validate: mobile => /\d{11}/.test(mobile) || '请输入正确的11位手机号码',
     },
   ]);
 
-  const existUser = config.user.find((d) => d.mobile === mobile);
+  const existUser = config.user.find(d => d.mobile === mobile);
   if (existUser) imaotai.user = existUser;
   imaotai.user.mobile = mobile;
 
@@ -368,7 +375,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           name: 'address',
           message: '请输入您当前的位置或要预约的地点（如：北京市朝阳区xxx路xx小区）',
           initial: '',
-          validate: (address) => address.length > 4 || '输入字符太少',
+          validate: address => address.length > 4 || '输入字符太少',
         },
       ]);
       const list = await getGeoByGD(address, inputData.AMAP_KEY);
@@ -376,12 +383,12 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
         type: 'select',
         name: 'idx',
         message: '请选择最近的一个位置',
-        choices: list.map((d) => ({
+        choices: list.map(d => ({
           name: d.formatted_address,
           message: `地址：${d.formatted_address}, 定位：${d.location}`,
         })),
       });
-      const item = list.find((d) => d.formatted_address === idx) || list[0];
+      const item = list.find(d => d.formatted_address === idx) || list[0];
       const [lng, lat] = item.location.split(',');
       const t = {
         province: item.province,
@@ -397,7 +404,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           name: 'province',
           message: '请输入预约的省份（如广东省）',
           initial: imaotai.user.province,
-          validate: async (province) => {
+          validate: async province => {
             imaotai.user.province = province.trim();
             return /省|市$/.test(province.trim()) || '输入格式不正确';
           },
@@ -407,7 +414,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           name: 'city',
           message: '请输入预约的城市（如广州市）',
           initial: imaotai.user.city,
-          validate: async (city) => {
+          validate: async city => {
             imaotai.user.city = city.trim();
             return /市$/.test(city.trim()) || '输入格式不正确';
           },
@@ -416,7 +423,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           type: 'input',
           name: 'location',
           message: '请输入预约位置经纬度，逗号分割',
-          validate: async (location) => {
+          validate: async location => {
             if (!/\d+.\d+,\d+.\d+/.test(location.trim())) return '输入格式不正确';
             const [lng, lat] = location.split(',');
             imaotai.user.lat = +lat < +lng ? lat : lng;
@@ -440,7 +447,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
       type: 'input',
       name: 'vcode',
       message: '请输入接收到的验证码',
-      validate: async (vcode) => {
+      validate: async vcode => {
         if (!/\d+/.test(vcode)) return false;
         const data = await imaotai.login(mobile, vcode);
         if (data?.token) {
@@ -456,7 +463,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
   if (!existUser) config.user.push(imaotai.user);
 
   // @ts-ignore
-  Object.keys(info).forEach((k) => !info[k] && delete info[k]);
+  Object.keys(info).forEach(k => !info[k] && delete info[k]);
   stor.save(config);
 
   console.log(`获取到token信息：`, imaotai.user.token);
