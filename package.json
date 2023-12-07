@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@lzwme/fe-utils": "^1.5.7",
+    "@lzwme/fe-utils": "^1.5.8",
     "commander": "^11.1.0",
     "enquirer": "^2.4.1"
   },
