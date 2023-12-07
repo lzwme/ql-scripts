@@ -27,28 +27,28 @@ import { getLiteStorage, sendNotify } from './utils';
 const SPLIT = '&'; // 分割符（可自定义）
 const config = {
   token: {
-    XLHG: (process.env.XLHG_COOKIE || process.env.XLTH_COOKIE || '').split(SPLIT).filter(Boolean),
-    GLYP: [] as string[],
-    KGLG: [] as string[],
-    HLQG: [] as string[],
-    ZXCS: [] as string[],
-    GYQP: [] as string[],
-    LLSC: [] as string[],
-    YLQX: [] as string[],
+    新联惠购: (process.env.XLHG_COOKIE || process.env.XLTH_COOKIE || '').split(SPLIT).filter(Boolean),
+    贵旅优品: [] as string[],
+    空港乐购: [] as string[],
+    航旅黔购: [] as string[],
+    遵行出山: [] as string[],
+    贵盐黔品: [] as string[],
+    乐旅商城: [] as string[],
+    驿路黔寻: [] as string[],
   },
 };
 const stor = getLiteStorage<typeof config>('葫芦娃预约');
 const req = new Request('', { 'content-type': 'application/json' });
 const constants = {
   app: {
-    XLHG: { name: '新联惠购', channelId: '8', appId: 'wxded2e7e6d60ac09d' },
-    GLYP: { name: '贵旅优品', channelId: '7', appId: 'wx61549642d715f361' },
-    KGLG: { name: '空港乐购', channelId: '2', appId: 'wx613ba8ea6a002aa8' },
-    HLQG: { name: '航旅黔购', channelId: '6', appId: 'wx936aa5357931e226' },
-    ZXCS: { name: '遵行出山', channelId: '5', appId: 'wx624149b74233c99a' },
-    GYQP: { name: '贵盐黔品', channelId: '3', appId: 'wx5508e31ffe9366b8' },
-    LLSC: { name: '乐旅商城', channelId: '1', appId: 'wx821fb4d8604ed4d6' },
-    YLQX: { name: '驿路黔寻', channelId: '9', appId: 'wxee0ce83ab4b26f9c' },
+    新联惠购: { key: 'XLHG', channelId: '8', appId: 'wxded2e7e6d60ac09d' },
+    贵旅优品: { key: 'GLYP', channelId: '7', appId: 'wx61549642d715f361' },
+    空港乐购: { key: 'KGLG', channelId: '2', appId: 'wx613ba8ea6a002aa8' },
+    航旅黔购: { key: 'HLQG', channelId: '6', appId: 'wx936aa5357931e226' },
+    遵行出山: { key: 'ZXCS', channelId: '5', appId: 'wx624149b74233c99a' },
+    贵盐黔品: { key: 'GYQP', channelId: '3', appId: 'wx5508e31ffe9366b8' },
+    乐旅商城: { key: 'LLSC', channelId: '1', appId: 'wx821fb4d8604ed4d6' },
+    驿路黔寻: { key: 'YLQX', channelId: '9', appId: 'wxee0ce83ab4b26f9c' },
   },
   apiUrl: 'https://gw.huiqunchina.com',
   akskUrl: 'https://callback.huiqunchina.com',
@@ -124,26 +124,33 @@ async function reservation(appId: string, channelId: string) {
 async function start() {
   assign(config, stor.get());
 
-  for (const [key, tokens] of Object.entries(config.token)) {
+  for (let [appName, tokens] of Object.entries(config.token)) {
+    if (/^[a-zA-Z]$/.test(appName)) {
+        const item = Object.entries(constants.app).find(d => d[1].key === appName);
+        if (!item) continue;
+        appName = item[0];
+    }
+
     if (!tokens.length) {
-      tokens.push(...(process.env[`${key}_COOKIE`] || process.env[`${key}_TOKEN`] || '').split(SPLIT).filter(Boolean));
+      const key = Object.entries(constants.app).find(d => d[0] === appName)?.[1].key;
+      if (key) tokens.push(...(process.env[`${key}_COOKIE`] || process.env[`${key}_TOKEN`] || '').split(SPLIT).filter(Boolean));
       if (!tokens.length) continue;
     }
 
-    const constant = constants.app[key as keyof typeof constants.app];
-    logPrint(`${constant.name}预约开始`);
+    const constant = constants.app[appName as keyof typeof constants.app];
+    logPrint(`${appName}预约开始`);
 
     await getAkSk(constant.appId);
     for (const [idx, token] of tokens.entries()) {
       logPrint('----第' + (idx + 1) + '个号----');
       req.setHeaders({
-        'X-access-token': token,
+        'X-access-token': token.split('|')[0].trim(),
         'user-agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x6309080f)XWEB/8461`,
       });
       await reservation(constant.appId, constant.channelId);
       await sleep(1000);
     }
-    logPrint(`${constant.name}预约结束\n`);
+    logPrint(`${appName}预约结束\n`);
   }
 
   await sendNotify('葫芦娃预约', cache.message.join('\n'), {}, '\n\n本通知 By：lzwme/ql-scripts');
