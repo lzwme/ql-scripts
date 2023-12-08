@@ -26,4 +26,4 @@ pnpm-lock.yaml
 
 # config
 /.flh.config.js
-/lzwme_ql_config.json
+/lzwme_ql_config.*

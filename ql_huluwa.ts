@@ -104,7 +104,7 @@ async function reservation(appId: string, channelId: string) {
 
     if (aData.appointCounts > 1 && aData.drawTime < Date.now()) {
       logPrint(
-        `[${aData.name}]结果已公布，中签人数[${aData.appointCounts}]，${aData.isAppoint ? '您已中签，尽快进小程序确认！' : '您未中签'}`
+        `[${aData.name}]结果已公布，中签人数[${aData.appointCounts}]，${aData.isAppoint ? '您可能已中签，尽快进小程序确认！' : '您未中签'}`
       );
       return;
     }

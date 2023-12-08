@@ -24,13 +24,18 @@ const itemMap: Record<string, string> = {
 const config = {
   AMAP_KEY: '', // 高德地图 key，用于命令行方式登录获取经纬度，可以不用
   appVersion: '1.5.3', // APP 版本，可以不写，会尝试自动获取
-  type: 'nearby' as 'max' | 'maxRate' | 'nearby', // 预约店铺策略类型。max: 最大投放量店铺；maxRate: 近30日中签率最高店铺；nearby: 距离最近店铺（默认）
+  // 预约店铺策略。max: 最大投放量；maxRate: 近30日中签率最高；nearby: 距离最近店铺（默认）; keyword: shopKeywords 列表优先
+  type: 'nearby' as 'max' | 'maxRate' | 'nearby' | 'keyword',
+  shopKeywords: [], // 店铺白名单：用于指定高优先级的店铺，type=keyword 时，优先查找符合列表关键字的店铺申购
+  shopKeywordsFilter: [], // 店铺黑名单：用于过滤不希望申购的店铺，避免距离过远无法去领取
   user: [
     {
-      mobile: '',
+      mobile: '', // 手机号码，用于账号配置识别
       itemCodes: ['10213', '10214'], // 要预约的类型
       province: 'xx省',
       city: 'xx市',
+      shopKeywords: [], // 店铺白名单（优先级更高）：用于指定高优先级的店铺，若设置了该项，则优先查找符合列表关键字的店铺申购
+      shopKeywordsFilter: [], // 店铺黑名单（优先级更高）：用于过滤不希望申购的店铺，避免距离过远无法去领取
       // 以下项可抓包获取
       lng: '', //经度
       lat: '', // 纬度
@@ -129,45 +134,90 @@ const imaotai = {
     }
     return cacheInfo.info.sessionInfo || {};
   },
-  // 查询投放量，返回要预约的店铺 id
-  async getShopItem(sessionId: number, itemId: string, province: string, city: string) {
-    // 2.查询所在省市的投放产品和数量
+  /** 查询所在省市的投放产品和数量 */
+  async queryMallShopList(sessionId: number, itemId: string, province: string, city?: string) {
     // https://static.moutai519.com.cn/mt-backend/xhr/front/mall/shop/list/slim/v3/837/%E9%87%8D%E5%BA%86%E5%B8%82/10213/1701100800000
-    type Item = { count: number; itemId: string; ownerName: string; maxReserveCount: number; inventory: number };
     const url = `https://static.moutai519.com.cn/mt-backend/xhr/front/mall/shop/list/slim/v3/${sessionId}/${province}/${itemId}/${time_keys}`;
-    const r = await req.get<{ code: number; data: { shops: { shopId: string; items: Item[] }[]; validTime: number; items: any[] } }>(url);
+    const r = await req.get<{
+      code: number;
+      data: {
+        shops: { shopId: string; items: MallShopItem[] }[];
+        validTime: number;
+        items: { title: string; itemId: string; price: string }[];
+      };
+    }>(url);
     const data = r.data.data;
-    const selectedShopItem: { shopId: string; item?: Item } = { shopId: '' };
+    if (city) {
+      data.shops = data.shops.filter((shop) => this.mall[shop.shopId]?.cityName === city);
+    }
+    return data;
+  },
+  /** 查询投放量，返回要预约的店铺 id */
+  async getShopItem(sessionId: number, itemId: string, province: string, city: string) {
+    const data = await this.queryMallShopList(sessionId, itemId, province, city);
+    const selectedShopItem: { shopId: string; item?: MallShopItem } = { shopId: '' };
 
+    data.shops = data.shops.filter((s) => this.mall[s.shopId]);
+
+    // 黑名单关键词过滤
+    if (this.user.shopKeywordsFilter?.length > 0) {
+      data.shops = data.shops.filter((shop) => {
+        const shopInfo = this.mall[shop.shopId];
+        for (const keyword of this.user.shopKeywordsFilter) {
+          if (shopInfo.name.includes(keyword) || shopInfo.name.includes(keyword)) return false;
+        }
+        return true;
+      });
+    }
+
+    // 白名单关键词优先
+    if (config.type === 'keyword') {
+      for (const keyword of this.user.shopKeywords) {
+        const t = data.shops.find((shop) => {
+          const shopInfo = this.mall[shop.shopId];
+          if (!shopInfo || (!shopInfo.name.includes(keyword) && shopInfo.fullAddress.includes(keyword))) return false;
+
+          const item = shop.items.find((d) => d.itemId == itemId);
+          if (!item) return false;
+          selectedShopItem.shopId = shop.shopId;
+          selectedShopItem.item = item;
+          return true;
+        });
+
+        if (t) return selectedShopItem;
+      }
+    }
+    
+    // 最大申购率店铺
     if (config.type === 'maxRate') {
       const r = await this.cityLotteyStat(this.user.city, [itemId]);
-      const maxItem = r[itemId].list[0];
-      selectedShopItem.shopId = maxItem.shop.shopId;
-      console.log(`选取近N天中签率最高的店铺：[${maxItem.shop.name}][${maxItem.rate}%]`);
+
+      for (const maxItem of r[itemId].list) {
+        const shop = data.shops.find((d) => d.shopId === maxItem.shop.shopId);
+        if (shop) {
+          const item = shop.items.find((d) => d.itemId == itemId);
+          if (item) {
+            // console.log(`选取近N天中签率最高的店铺：[${maxItem.shop.name}][${maxItem.rate}%]`);
+            selectedShopItem.shopId = shop.shopId;
+            selectedShopItem.item = item;
+            return selectedShopItem;
+          }
+        }
+      }
     }
 
     for (const shop of data.shops) {
-      const shopInfo = this.mall[shop.shopId];
       const item = shop.items.find((d) => d.itemId == itemId);
-
-      if (!item || shopInfo?.cityName !== city) continue;
-
-      if (config.type === 'maxRate') {
-        if (shopInfo.shopId === selectedShopItem.shopId) {
-          selectedShopItem.item = item;
-          break;
-        }
-        continue;
-      }
+      if (!item) continue;
 
       if (!selectedShopItem.item || selectedShopItem.item.inventory < item.inventory!) {
         selectedShopItem.shopId = shop.shopId;
         selectedShopItem.item = item;
-        if (config.type !== 'max') break; // 不是 max，第一个就是最近的
+
+        if (config.type === 'nearby') return selectedShopItem;
       }
     }
 
-    if (this.debug) console.log('[selectedShopItem]', selectedShopItem);
     return selectedShopItem;
   },
   getHeaders(cheaders: IncomingHttpHeaders = {}, type: 'h5' | 'app' = 'app') {
@@ -253,11 +303,12 @@ const imaotai = {
   async cityLotteyStat(city = '广州市', itemCodes = ['10213', '10214']) {
     await imaotai.getMap();
     await imaotai.getSessionId();
+
     const shopList = Object.values(imaotai.mall).filter((d) => d.cityName == city);
     const stats = {} as { [itemCode: string]: { list: Awaited<ReturnType<typeof shopLotteryStats>>[]; rankingDetail: string } };
 
     for (const itemCode of itemCodes) {
-      stats[itemCode] = { list: [], rankingDetail: `【${cyanBright(itemMap[itemCode])}】【${cyan(city)}】中签率统计排行：\n` };
+      stats[itemCode] = { list: [], rankingDetail: `【${cyanBright(itemMap[itemCode])}】【${cyan(city)}】近30日中签率统计排行：\n` };
 
       for (const shop of shopList) {
         const info = await shopLotteryStats(shop, { itemCode, days: 30, tryUpdateFailed: false });
@@ -317,7 +368,6 @@ const imaotai = {
       'h5'
     );
     const r = await req.post('https://h5.moutai519.com.cn/game/isolationPage/getUserEnergyAward', {}, headers);
-    console.log('领取耐力值：', r.data?.message);
     return r.data.message || '领取奖励成功';
   },
   async start(inputData = config) {
@@ -335,12 +385,21 @@ const imaotai = {
           userCount++;
 
           try {
-            this.user = assign({} as any, defautUser, user, {
-              header: {
-                app: { 'MT-Token': user.token },
-                h5: { 'MT-Token-Wap': user.tokenWap },
+            this.user = assign(
+              {} as any,
+              {
+                ...defautUser,
+                shopKeywords: inputData.shopKeywords,
+                shopKeywordsFilter: inputData.shopKeywordsFilter,
               },
-            } as Partial<typeof defautUser>);
+              user,
+              {
+                header: {
+                  app: { 'MT-Token': user.token },
+                  h5: { 'MT-Token-Wap': user.tokenWap },
+                },
+              } as Partial<typeof defautUser>
+            );
 
             const { userName, userId, mobile } = await this.getUserId();
             if (!userId) {
@@ -364,7 +423,7 @@ const imaotai = {
                 }
               }
               const awardMsg = await this.getUserEnergyAward();
-              msgList.push(`领取来耐力值：${awardMsg}`);
+              msgList.push(`领取耐力值：${awardMsg}`);
             }
           } catch (err) {
             console.error(err);
@@ -529,10 +588,10 @@ async function shopLotteryStats(shop: IShopInfo, { itemCode = '10213', sessionId
     .filter((v) => v > 100);
 
   for (let sId of sessionList) {
+    if (!cacheInfo.lottery[shop.shopId][sId]) cacheInfo.lottery[shop.shopId][sId] = {};
+
     const item = cacheInfo.lottery[shop.shopId][sId][itemCode];
     if (item && (!tryUpdateFailed || item.hitCnt)) continue;
-
-    if (!cacheInfo.lottery[shop.shopId][sId]) cacheInfo.lottery[shop.shopId][sId] = {};
 
     const url = `https://static.moutai519.com.cn/mt-backend/mt/lottery/${sId}/${itemCode}/${shop.shopId}/page1.json?csrf_token`;
     console.log('get:', cyan(url));
@@ -542,7 +601,7 @@ async function shopLotteryStats(shop: IShopInfo, { itemCode = '10213', sessionId
       info.rate = Math.floor((info.hitCnt / info.reservationCnt) * 100000) / 1000;
       info.rateAll = Math.floor((info.allItemDetail.hitCnt / info.allItemDetail.reservationCnt) * 100000) / 1000;
     } else {
-      console.log(color.red(' > 获取失败：'), data);
+      if (typeof data !== 'string' || !String(data).includes('xml ')) console.log(color.red(' > 获取失败：'), data);
       cacheInfo.lottery[shop.shopId][sId][itemCode] = {} as never;
     }
   }
@@ -612,3 +671,5 @@ type IShopInfo = {
   name: string;
   shopId: string;
 };
+
+type MallShopItem = { count: number; itemId: string; ownerName: string; maxReserveCount: number; inventory: number };

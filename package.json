@@ -15,6 +15,7 @@
     "enquirer": "^2.4.1"
   },
   "devDependencies": {
+    "@iarna/toml": "^2.2.5",
     "@types/node": "^20.10.4",
     "moment": "^2.29.4"
   }
