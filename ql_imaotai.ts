@@ -187,7 +187,7 @@ const imaotai = {
         if (t) return selectedShopItem;
       }
     }
-    
+
     // 最大申购率店铺
     if (config.type === 'maxRate') {
       const r = await this.cityLotteyStat(this.user.city, [itemId]);
@@ -264,7 +264,7 @@ const imaotai = {
         stor.save(config);
         return this.getUserId() as any;
       }
-      console.log('userinfo:', r);
+      console.log(`[error][getuserid][${this.user.mobile}]:`, r);
     }
     return r.data || {}; // userName, userId, mobile
   },

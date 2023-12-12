@@ -1,7 +1,7 @@
 /**
  葫芦娃预约 v1.06
 
- cron: 50 9 * * *
+ cron: 10 10 * * *
  const $ = new Env("葫芦娃预约");
 
  抓包把 X-access-token 的值(在请求头里)填到环境变量中, 多账号用 & 隔开（可自定义）
@@ -96,12 +96,17 @@ async function reservation(appId: string, channelId: string) {
   try {
     const userInfo = await post<{ phone: string; idcard: string; realName: string }>(constants.api.queryById, { appId });
     if (userInfo.code != '10000') return logPrint(userInfo.message);
-    logPrint(`当前用户[${userInfo.data.phone}]`);
 
     const activityRes = await post(constants.api.channelActivity, { id: channelId });
     const aData = activityRes.data;
     if (activityRes.code != '10000') return logPrint(activityRes.message);
 
+    if (aData.endTime && Date.now() - aData.endTime > 10 * 60 * 1000) {
+      logPrint(`----暂无新活动。最近活动为【${aData.name}】----`);
+      return '活动已结束';
+    }
+
+    logPrint(`当前用户[${userInfo.data.phone}]`);
     if (aData.appointCounts > 1 && aData.drawTime < Date.now()) {
       logPrint(
         `[${aData.name}]结果已公布，中签人数[${aData.appointCounts}]，${aData.isAppoint ? '您可能已中签，尽快进小程序确认！' : '您未中签'}`
@@ -147,7 +152,9 @@ async function start() {
         'X-access-token': token.split('|')[0].trim(),
         'user-agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x6309080f)XWEB/8461`,
       });
-      await reservation(constant.appId, constant.channelId);
+      const msg = await reservation(constant.appId, constant.channelId);
+      if (msg === '活动已结束') break;
+
       await sleep(1000);
     }
     logPrint(`${appName}预约结束\n`);
