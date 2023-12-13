@@ -175,7 +175,7 @@ const imaotai = {
       for (const keyword of this.user.shopKeywords) {
         const t = data.shops.find((shop) => {
           const shopInfo = this.mall[shop.shopId];
-          if (!shopInfo || (!shopInfo.name.includes(keyword) && shopInfo.fullAddress.includes(keyword))) return false;
+          if (!shopInfo || (!shopInfo.name.includes(keyword) && !shopInfo.fullAddress.includes(keyword))) return false;
 
           const item = shop.items.find((d) => d.itemId == itemId);
           if (!item) return false;
@@ -422,9 +422,9 @@ const imaotai = {
                   msgList.push(`【${item.itemCode}_${item.title}】未获取到可预约的店铺，未能预约`);
                 }
               }
-              const awardMsg = await this.getUserEnergyAward();
-              msgList.push(`领取耐力值：${awardMsg}`);
             }
+            const awardMsg = await this.getUserEnergyAward();
+            msgList.push(`领取耐力值：${awardMsg}`);
           } catch (err) {
             console.error(err);
             msgList.push(`[${userCount}]error: ${(err as Error).message || JSON.stringify(err)}`);
