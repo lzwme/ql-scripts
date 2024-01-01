@@ -36,11 +36,10 @@ export function getLiteStorage<T extends object = Record<string, any>>(uuid: str
 
 export async function sendNotify(text: string, body: string, params: Record<string, any> = {}, author = '\n本通知 By：lzwme/ql-scripts', isPrint = true) {
   const notifyFilePath = findFile('sendNotify.js');
+  if (!notifyFilePath || isPrint) console.log(`[notify][${text}]\n`, body);
   if (notifyFilePath) {
     await require(notifyFilePath).sendNotify(text, body, params, author);
   }
-
-  if (!notifyFilePath || isPrint) console.log(`[notify][${text}]\n`, body);
 }
 
 /** 根据指定的位置返回附近位置及经纬度列表 */

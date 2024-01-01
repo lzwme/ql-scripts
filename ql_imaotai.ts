@@ -30,6 +30,7 @@ const config = {
   shopKeywordsFilter: [], // 店铺黑名单：用于过滤不希望申购的店铺，避免距离过远无法去领取
   user: [
     {
+      disabled: false, // 是否禁用
       mobile: '', // 手机号码，用于账号配置识别
       itemCodes: ['10213', '10214'], // 要预约的类型
       province: 'xx省',
@@ -381,11 +382,11 @@ const imaotai = {
       if (!sessionInfo.sessionId) {
         msgList.push(`获取 sessionId 失败: ${JSON.stringify(sessionInfo)}`);
       } else {
-        for (const user of inputData.user) {
+        for (let user of inputData.user) {
           userCount++;
 
           try {
-            this.user = assign(
+            this.user = user = assign(
               {} as any,
               {
                 ...defautUser,
@@ -400,6 +401,8 @@ const imaotai = {
                 },
               } as Partial<typeof defautUser>
             );
+
+            if (user.disabled) continue;
 
             const { userName, userId, mobile } = await this.getUserId();
             if (!userId) {

@@ -90,7 +90,7 @@ function post<T = any>(pathname: string, data: Record<string, unknown>) {
 async function getAkSk(appId: string) {
   const { data } = await req.post(`${constants.akskUrl}/api/getInfo`, { appId });
   if (data.code == '10000') assign(cache, data.data); // data.data.ak、sk
-  else logPrint(`获取 ak/sk 异常：${data.message}`);
+  else logPrint(`获取 ak/sk 异常：${data?.message || data }`);
 }
 async function reservation(appId: string, channelId: string) {
   try {
