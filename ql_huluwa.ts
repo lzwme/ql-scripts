@@ -10,7 +10,7 @@
  环境变量 GLYP_TOKEN 贵旅优品
  环境变量 KGLG_TOKEN 空港乐购
  环境变量 HLQG_TOKEN 航旅黔购
- 环境变量 ZHCS_TOKEN 遵行出山
+ 环境变量 ZHCS_TOKEN 遵航出山
  环境变量 GYQP_TOKEN 贵盐黔品
  环境变量 LLSC_TOKEN 乐旅商城
  环境变量 YLQX_TOKEN 驿路黔寻
@@ -31,7 +31,7 @@ const config = {
     贵旅优品: [] as string[],
     空港乐购: [] as string[],
     航旅黔购: [] as string[],
-    遵行出山: [] as string[],
+    遵航出山: [] as string[],
     贵盐黔品: [] as string[],
     乐旅商城: [] as string[],
     驿路黔寻: [] as string[],
@@ -45,7 +45,7 @@ const constants = {
     贵旅优品: { key: 'GLYP', channelId: '7', appId: 'wx61549642d715f361' },
     空港乐购: { key: 'KGLG', channelId: '2', appId: 'wx613ba8ea6a002aa8' },
     航旅黔购: { key: 'HLQG', channelId: '6', appId: 'wx936aa5357931e226' },
-    遵行出山: { key: 'ZXCS', channelId: '5', appId: 'wx624149b74233c99a' },
+    遵航出山: { key: 'ZXCS', channelId: '5', appId: 'wx624149b74233c99a' },
     贵盐黔品: { key: 'GYQP', channelId: '3', appId: 'wx5508e31ffe9366b8' },
     乐旅商城: { key: 'LLSC', channelId: '1', appId: 'wx821fb4d8604ed4d6' },
     驿路黔寻: { key: 'YLQX', channelId: '9', appId: 'wxee0ce83ab4b26f9c' },
