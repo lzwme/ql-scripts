@@ -23,7 +23,7 @@ const itemMap: Record<string, string> = {
 };
 const config = {
   AMAP_KEY: '', // 高德地图 key，用于命令行方式登录获取经纬度，可以不用
-  appVersion: '1.5.3', // APP 版本，可以不写，会尝试自动获取
+  appVersion: '1.5.6', // APP 版本，可以不写，会尝试自动获取
   // 预约店铺策略。max: 最大投放量；maxRate: 近30日中签率最高；nearby: 距离最近店铺（默认）; keyword: shopKeywords 列表优先
   type: 'nearby' as 'max' | 'maxRate' | 'nearby' | 'keyword',
   shopKeywords: [], // 店铺白名单：用于指定高优先级的店铺，type=keyword 时，优先查找符合列表关键字的店铺申购
@@ -32,11 +32,11 @@ const config = {
     {
       disabled: false, // 是否禁用
       mobile: '', // 手机号码，用于账号配置识别
-      itemCodes: ['10213', '10214'], // 要预约的类型
+      itemCodes: [] as string[], // ['10941', '10942'], // 要预约的类型，若不设置，默认过滤 1935 和 珍品
       province: 'xx省',
       city: 'xx市',
-      shopKeywords: [], // 店铺白名单（优先级更高）：用于指定高优先级的店铺，若设置了该项，则优先查找符合列表关键字的店铺申购
-      shopKeywordsFilter: [], // 店铺黑名单（优先级更高）：用于过滤不希望申购的店铺，避免距离过远无法去领取
+      shopKeywords: [] as string[], // 店铺白名单（优先级更高）：用于指定高优先级的店铺，若设置了该项，则优先查找符合列表关键字的店铺申购
+      shopKeywordsFilter: [] as string[], // 店铺黑名单（优先级更高）：用于过滤不希望申购的店铺，避免距离过远无法去领取
       // 以下项可抓包获取
       lng: '', //经度
       lat: '', // 纬度
@@ -67,7 +67,7 @@ const cacheInfo = {
     date: '',
     sessionInfo: {
       sessionId: 0,
-      itemList: [] as any[],
+      itemList: [] as Record<'title' | 'itemCode' | 'content', string>[],
     },
   },
   lottery: {} as { [shopId: string]: { [sessionId: string]: { [itemCode: string]: ILottery } } },
@@ -270,12 +270,8 @@ const imaotai = {
     return r.data || {}; // userName, userId, mobile
   },
   async getAppVersion(isSave = true) {
-    const { data: html } = await req.get<string>(
-      'https://apps.apple.com/cn/app/i%E8%8C%85%E5%8F%B0/id1600482450',
-      {},
-      { 'content-type': 'text/html' }
-    );
-    const r = String(html).match(/whats-new__latest__version.+(\d+\.\d+\.\d+)/);
+    const f = await req.get('https://apps.apple.com/cn/app/i%E8%8C%85%E5%8F%B0/id1600482450', {}, { 'content-type': 'text/html' });
+    const r = String(f.data).match(/whats-new__latest__version.+(\d+\.\d+\.\d+)/);
 
     if (r && r[1] !== config.appVersion) {
       console.log(`获取到新版本：${config.appVersion} => ${r[1]}`);
@@ -412,6 +408,16 @@ const imaotai = {
 
             req.setHeaders({ userId });
             msgList.push(`第 ${userCount} 个用户【${userName}_${mobile}】开始任务-------------`);
+
+            if (!user.itemCodes?.length || !user.itemCodes.some((d) => sessionInfo.itemList.some((e) => e.itemCode == d))) {
+              user.itemCodes = sessionInfo.itemList
+                .filter((d) => {
+                  return !['10056', '2478'].includes(d.itemCode);
+                  // const title = String(d.title);
+                  // return title.includes('贵州茅台酒') && !title.includes('珍品');
+                })
+                .map((d) => d.itemCode);
+            }
 
             for (const item of sessionInfo.itemList) {
               if (user.itemCodes.includes(item.itemCode)) {
@@ -568,8 +574,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
 
   if (!existUser) config.user.push(imaotai.user);
 
-  // @ts-ignore
-  Object.keys(info).forEach((k) => !info[k] && delete info[k]);
+  for (const key in imaotai.user) if (!imaotai.user[key as never]) delete imaotai.user[key as never];
   stor.save(config);
 
   console.log(`获取到token信息：`, imaotai.user.token);
