@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2023-12-13 09:49:20
+ * @LastEditTime: 2024-01-08 16:31:10
  * @Description:
  */
 import { LiteStorage, Request } from '@lzwme/fe-utils';
@@ -24,11 +24,17 @@ export function findFile(filename: string, dirs = [process.cwd(), __dirname]) {
   return '';
 }
 
-export function getLiteStorage<T extends object = Record<string, any>>(uuid: string, filepath = process.env.LZWME_QL_CONFIG_FILE) {
+/** 获取本地持久缓存对象 */
+export function getCacheStorage<T extends object = Record<string, any>>(uuid: string) {
+  return getConfigStorage<T>(uuid, resolve(process.cwd(), 'cache/lzwme_ql_cache.json'));
+}
+
+/** 获取配置持久化对象 */
+export function getConfigStorage<T extends object = Record<string, any>>(uuid: string, filepath = process.env.LZWME_QL_CONFIG_FILE) {
   if (!uuid) throw Error('请指定 uuid');
 
   if (!filepath) {
-    filepath = findFile('lzwme_ql_config.json') || 'lzwme_ql_config.json';
+    filepath = findFile('lzwme_ql_config.json5') || findFile('lzwme_ql_config.json') || 'lzwme_ql_config.json';
   }
 
   return new LiteStorage<T>({ filepath: resolve(process.cwd(), filepath), uuid });

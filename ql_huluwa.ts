@@ -22,7 +22,7 @@ import { createHmac } from 'crypto';
 import moment from 'moment';
 import type { IncomingHttpHeaders } from 'http';
 import { assign, Request, sleep } from '@lzwme/fe-utils';
-import { getLiteStorage, sendNotify } from './utils';
+import { getConfigStorage, sendNotify } from './utils';
 
 const SPLIT = '&'; // 分割符（可自定义）
 const config = {
@@ -37,7 +37,7 @@ const config = {
     驿路黔寻: [] as string[],
   },
 };
-const stor = getLiteStorage<typeof config>('葫芦娃预约');
+const stor = getConfigStorage<typeof config>('葫芦娃预约');
 const req = new Request('', { 'content-type': 'application/json' });
 const constants = {
   app: {

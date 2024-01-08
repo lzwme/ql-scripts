@@ -9,7 +9,7 @@
  */
 
 import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color } from '@lzwme/fe-utils';
-import { getGeoByGD, getLiteStorage, sendNotify } from './utils';
+import { getGeoByGD, getConfigStorage, sendNotify } from './utils';
 import { program } from 'commander';
 import { IncomingHttpHeaders } from 'http';
 import { homedir, hostname } from 'os';
@@ -63,7 +63,7 @@ config.user[0] = assign({} as any, defautUser);
 const { green, red, cyan, cyanBright } = color;
 const today = dateFormat('yyyy-MM-dd', new Date());
 const time_keys = new Date(`${today}T00:00:00`).getTime();
-const stor = getLiteStorage('I茅台预约');
+const configStor = getConfigStorage('I茅台预约');
 const cacheInfo = {
   info: {
     date: '',
@@ -74,7 +74,7 @@ const cacheInfo = {
   },
   lottery: {} as { [shopId: string]: { [sessionId: string]: { [itemCode: string]: ILottery } } },
 };
-const cacheStor = getLiteStorage<Partial<typeof cacheInfo>>('I茅台预约缓存', resolve(process.cwd(), 'cache/imaotai-cache.json'));
+const cacheStor = getConfigStorage<Partial<typeof cacheInfo>>('I茅台预约缓存', resolve(process.cwd(), 'cache/imaotai-cache.json'));
 assign(cacheInfo, cacheStor.get());
 
 const req = new Request('', {
@@ -223,7 +223,7 @@ const imaotai = {
 
     return selectedShopItem;
   },
-  getHeaders(cheaders: IncomingHttpHeaders = {}, type: 'h5' | 'app' = 'app') {
+  getHeaders(cheaders: IncomingHttpHeaders = {}, type: 'h5' | 'app' = 'app', setcookie = true) {
     const header: IncomingHttpHeaders = { 'MT-R': mt_r };
 
     if (type === 'app') {
@@ -248,23 +248,22 @@ const imaotai = {
         'MT-Device-ID-Wap': this.user.deviceId,
         ...this.user.header.h5,
       });
+      if (setcookie && !header.cookie) {
+        header.cookie = [`MT-Device-ID-Wap=${this.user.deviceId}`, `MT-Token-Wap='${this.user.tokenWap}`, 'YX_SUPPORT_WEBP=1'].join(';');
+      }
     }
 
-    Object.assign(header, {
-      'MT-Request-ID': `${Date.now()}${Math.ceil(Math.random() * (999999999 - 1111111) + 1111111)}`,
-    });
-
+    header['MT-Request-ID'] = `${Date.now() * 100000 + Math.ceil(10000 * Math.random())}`;
     return Object.assign(header, cheaders);
   },
   async getUserId(): Promise<{ userName: string; userId: string; mobile: string }> {
-    const headers = this.getHeaders();
-    const { data: r } = await req.get('https://app.moutai519.com.cn/xhr/front/user/info', {}, headers);
+    const { data: r } = await req.get('https://app.moutai519.com.cn/xhr/front/user/info', {}, this.getHeaders());
 
     if (r.code != 2000) {
       if (r.data?.version && r.data.version != config.appVersion) {
         console.log('不是最新的版本号', config.appVersion, r.data);
         config.appVersion = r.data.version;
-        stor.save(config);
+        configStor.save(config);
         return this.getUserId() as any;
       }
       console.log(`[error][getuserid][${this.user.mobile}]:`, r);
@@ -278,7 +277,7 @@ const imaotai = {
     if (r && r[1] !== config.appVersion) {
       console.log(`获取到新版本：${config.appVersion} => ${r[1]}`);
       config.appVersion = r[1];
-      if (isSave) stor.save(config);
+      if (isSave) configStor.save(config);
     }
     req.setHeaders({ 'MT-APP-Version': config.appVersion });
   },
@@ -353,25 +352,16 @@ const imaotai = {
     if (data.data?.verifyStatus !== 1) console.warn('请注意，该账号尚未实名认证');
     return data.data;
   },
-  // 领取耐力
+  /**  领取连续申购奖励 */
   async getUserEnergyAward() {
-    const headers = this.getHeaders(
-      {
-        Referer: 'https://h5.moutai519.com.cn/gux/game/main?appConfig=2_1_2',
-        cookie: [
-          `MT-Device-ID-Wap=${this.user.deviceId}`,
-          `MT-Token-Wap='${this.user.tokenWap || this.user.token}`,
-          'YX_SUPPORT_WEBP=1',
-        ].join(';'),
-      },
-      'h5'
-    );
+    const headers = this.getHeaders({ Referer: 'https://h5.moutai519.com.cn/gux/game/main?appConfig=2_1_2' }, 'h5');
     const r = await req.post('https://h5.moutai519.com.cn/game/isolationPage/getUserEnergyAward', {}, headers);
     return r.data.message || '领取奖励成功';
   },
   /** 领取 7 日连续申购 */
   async receive7DaysApplyingReward() {
-    const qurl = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/cumulativelyApplyingDays';
+    const qurl = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/7DaysContinuouslyApplyingProgress';
+
     type R1 = Res<{ previousProgress: number; appliedToday: boolean; rewardReceived: boolean }>;
     const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r1);
@@ -382,12 +372,12 @@ const imaotai = {
     const url = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/receive7DaysContinuouslyApplyingReward';
     const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r2);
-    return r2.code == 2000 ? '领取7日连续申购奖励成功' : r2.message;
+    return r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message;
   },
   /** 领取累计申购奖励 */
   async cumulativelyApplyingDays() {
-    const qurl = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/7DaysContinuouslyApplyingProgress';
-    type R1 = Res<{ previousDays: number; appliedToday: boolean; rewardReceived: Record<'7' | '14' | '21' | '28', boolean>; }>;
+    const qurl = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/cumulativelyApplyingDays';
+    type R1 = Res<{ previousDays: number; appliedToday: boolean; rewardReceived: Record<'7' | '14' | '21' | '28', boolean> }>;
     const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r1);
     if (r1.code !== 2000) return r1.message || r1.error;
@@ -396,12 +386,11 @@ const imaotai = {
     for (const day of [7, 14, 21, 28] as const) {
       if (r1.data.rewardReceived[day]) continue;
       if (r1.data.previousDays + 1 < day) break;
-      // todo: 提交申购
-      msg += `[TODO]请手动领取累计申购[${day}]天奖励`;
-      // const url = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/receive7DaysContinuouslyApplyingReward';
-      // const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
-      // if (imaotai.debug) console.log(r1);
-      // msg += `;[累计申购${day}天]${r2.code == 2000 ? '领取奖励成功' : r2.message}`;
+
+      const url = `https://h5.moutai519.com.cn/game/xmyApplyingReward/receiveCumulativelyApplyingReward`;
+      const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
+      if (imaotai.debug) console.log(r1);
+      msg += `;[累计申购${day}天]${r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message}`;
     }
 
     return msg || `无可领取奖励[${r1.data.previousDays + 1}]`;
@@ -616,11 +605,11 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
   if (!existUser) config.user.push(imaotai.user);
 
   for (const key in imaotai.user) if (!imaotai.user[key as never]) delete imaotai.user[key as never];
-  stor.save(config);
+  configStor.save(config);
 
   console.log(`获取到token信息：`, imaotai.user.token);
   // @ts-ignore
-  console.log('请在配置文件中补充完善配置：', stor.options.filepath, '\n', JSON.stringify(imaotai.user, null, 2));
+  console.log('请在配置文件中补充完善配置：', configStor.options.filepath, '\n', JSON.stringify(imaotai.user, null, 2));
 }
 
 async function shopLotteryStats(shop: IShopInfo, { itemCode = '10213', sessionId = 0, days = 30, tryUpdateFailed = false }) {
@@ -650,14 +639,14 @@ async function shopLotteryStats(shop: IShopInfo, { itemCode = '10213', sessionId
 
     const url = `https://static.moutai519.com.cn/mt-backend/mt/lottery/${sId}/${itemCode}/${shop.shopId}/page1.json?csrf_token`;
     const { data } = await req.get<{ code: string; data: ILottery }>(url);
-    console.log(`[get][${data.data?.lotteryDate ? green('ok') : red('failed') }]`, cyan(url));
+    console.log(`[get][${data.data?.lotteryDate ? green('ok') : red('failed')}]`, cyan(url));
     if (data.data?.lotteryDate) {
       const info = (cacheInfo.lottery[shop.shopId][sId][itemCode] = data.data);
       info.rate = Math.floor((info.hitCnt / info.reservationCnt) * 100000) / 1000;
       info.rateAll = Math.floor((info.allItemDetail.hitCnt / info.allItemDetail.reservationCnt) * 100000) / 1000;
       failedCount = 0;
     } else {
-      if (imaotai.debug && typeof data !== 'string' || String(data).includes('xml ')) console.log(red(' > 获取失败：'), data);
+      if ((imaotai.debug && typeof data !== 'string') || String(data).includes('xml ')) console.log(red(' > 获取失败：'), data);
       cacheInfo.lottery[shop.shopId][sId][itemCode] = {} as never;
       failedCount++;
     }
@@ -694,7 +683,7 @@ program
   .option('-s, --stat [city]', '统计指定城市中签率')
   .option('-d, --debug', '调试模式')
   .action(async (opts: { login: boolean; force?: boolean; debug: boolean; stat?: string }) => {
-    assign(config, stor.get());
+    assign(config, configStor.get());
     if (opts.debug) imaotai.debug = opts.debug;
 
     if (opts.stat) {

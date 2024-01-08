@@ -6,10 +6,7 @@
             "user": [
                 {
                     "phone": "13800138000",
-                    "itemCodes": [
-                        "10213",
-                        "10214"
-                    ],
+                    "itemCodes": [],
                     "province": "xx省",
                     "city": "xx市",
                     "lng": "",

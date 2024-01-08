@@ -8,7 +8,7 @@
 # ql repo <repo_url> <whitelist> <blacklist> <dependence> <branch> <extensions>
 ql repo https://github.com/lzwme/ql_scripts.git "ql_|ql-" "backup|todo|deprecated" "utils"
 cd /ql/scripts
-pnpm add @lzwme/fe-utils commander enquirer moment
+pnpm add @lzwme/fe-utils commander enquirer moment json5
 ```
 
 ### 面板方式
@@ -26,8 +26,8 @@ pnpm add @lzwme/fe-utils commander enquirer moment
 
 ## 配置
 
-配置文件及格式可参考文件：[lzwme_ql_config.json](./sample/lzwme_ql_config.json)
-新增环境变量：`LZWME_QL_CONFIG_FILE`，值为 `/ql/data/scripts/lzwme_ql_config.json`。后续各脚本配置都会从此路径文件读取。
+配置文件及格式可参考文件：[lzwme_ql_config.json5](./sample/lzwme_ql_config.json5)
+新增环境变量：`LZWME_QL_CONFIG_FILE`，值为 `/ql/data/scripts/lzwme_ql_config.json5`。后续各脚本配置都会从此路径文件读取。
 
 ## 其他相关
 
