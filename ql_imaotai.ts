@@ -20,6 +20,8 @@ const itemMap: Record<string, string> = {
   10056: '茅台1935',
   2478: '贵州茅台酒（珍品）',
   10214: '贵州茅台酒（癸卯兔年）x2',
+  10941: '贵州茅台酒（甲辰龙年）',
+  10942: '贵州茅台酒（甲辰龙年）x2',
 };
 const config = {
   AMAP_KEY: '', // 高德地图 key，用于命令行方式登录获取经纬度，可以不用
@@ -58,7 +60,7 @@ const config = {
 const defautUser = config.user[0];
 config.user[0] = assign({} as any, defautUser);
 
-const { green, cyan, cyanBright } = color;
+const { green, red, cyan, cyanBright } = color;
 const today = dateFormat('yyyy-MM-dd', new Date());
 const time_keys = new Date(`${today}T00:00:00`).getTime();
 const stor = getLiteStorage('I茅台预约');
@@ -149,7 +151,7 @@ const imaotai = {
     }>(url);
     const data = r.data.data;
     if (city) {
-      data.shops = data.shops.filter((shop) => this.mall[shop.shopId]?.cityName === city);
+      data.shops = data.shops.filter(shop => this.mall[shop.shopId]?.cityName === city);
     }
     return data;
   },
@@ -158,11 +160,11 @@ const imaotai = {
     const data = await this.queryMallShopList(sessionId, itemId, province, city);
     const selectedShopItem: { shopId: string; item?: MallShopItem } = { shopId: '' };
 
-    data.shops = data.shops.filter((s) => this.mall[s.shopId]);
+    data.shops = data.shops.filter(s => this.mall[s.shopId]);
 
     // 黑名单关键词过滤
     if (this.user.shopKeywordsFilter?.length > 0) {
-      data.shops = data.shops.filter((shop) => {
+      data.shops = data.shops.filter(shop => {
         const shopInfo = this.mall[shop.shopId];
         for (const keyword of this.user.shopKeywordsFilter) {
           if (shopInfo.name.includes(keyword) || shopInfo.name.includes(keyword)) return false;
@@ -174,11 +176,11 @@ const imaotai = {
     // 白名单关键词优先
     if (config.type === 'keyword') {
       for (const keyword of this.user.shopKeywords) {
-        const t = data.shops.find((shop) => {
+        const t = data.shops.find(shop => {
           const shopInfo = this.mall[shop.shopId];
           if (!shopInfo || (!shopInfo.name.includes(keyword) && !shopInfo.fullAddress.includes(keyword))) return false;
 
-          const item = shop.items.find((d) => d.itemId == itemId);
+          const item = shop.items.find(d => d.itemId == itemId);
           if (!item) return false;
           selectedShopItem.shopId = shop.shopId;
           selectedShopItem.item = item;
@@ -194,9 +196,9 @@ const imaotai = {
       const r = await this.cityLotteyStat(this.user.city, [itemId]);
 
       for (const maxItem of r[itemId].list) {
-        const shop = data.shops.find((d) => d.shopId === maxItem.shop.shopId);
+        const shop = data.shops.find(d => d.shopId === maxItem.shop.shopId);
         if (shop) {
-          const item = shop.items.find((d) => d.itemId == itemId);
+          const item = shop.items.find(d => d.itemId == itemId);
           if (item) {
             // console.log(`选取近N天中签率最高的店铺：[${maxItem.shop.name}][${maxItem.rate}%]`);
             selectedShopItem.shopId = shop.shopId;
@@ -208,7 +210,7 @@ const imaotai = {
     }
 
     for (const shop of data.shops) {
-      const item = shop.items.find((d) => d.itemId == itemId);
+      const item = shop.items.find(d => d.itemId == itemId);
       if (!item) continue;
 
       if (!selectedShopItem.item || selectedShopItem.item.inventory < item.inventory!) {
@@ -282,7 +284,7 @@ const imaotai = {
   },
   signature(data: Record<string, unknown>, timestamp = Date.now().toString()) {
     const keys = Object.keys(data).sort();
-    const text = SALT + keys.map((k) => data[k]).join('') + timestamp;
+    const text = SALT + keys.map(k => data[k]).join('') + timestamp;
     return md5(text);
   },
   /** 获取手机验证码 */
@@ -297,11 +299,11 @@ const imaotai = {
     return data;
   },
   /** 指定城市中签率统计 */
-  async cityLotteyStat(city = '广州市', itemCodes = ['10213', '10214']) {
+  async cityLotteyStat(city = '广州市', itemCodes = ['10941', '10942', '10213', '10214']) {
     await imaotai.getMap();
     await imaotai.getSessionId();
 
-    const shopList = Object.values(imaotai.mall).filter((d) => d.cityName == city);
+    const shopList = Object.values(imaotai.mall).filter(d => d.cityName == city);
     const stats = {} as { [itemCode: string]: { list: Awaited<ReturnType<typeof shopLotteryStats>>[]; rankingDetail: string } };
 
     for (const itemCode of itemCodes) {
@@ -367,6 +369,43 @@ const imaotai = {
     const r = await req.post('https://h5.moutai519.com.cn/game/isolationPage/getUserEnergyAward', {}, headers);
     return r.data.message || '领取奖励成功';
   },
+  /** 领取 7 日连续申购 */
+  async receive7DaysApplyingReward() {
+    const qurl = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/cumulativelyApplyingDays';
+    type R1 = Res<{ previousProgress: number; appliedToday: boolean; rewardReceived: boolean }>;
+    const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
+    if (imaotai.debug) console.log(r1);
+    if (r1.code !== 2000) return r1.message || r1.error;
+    if (r1.data.rewardReceived) return '今日已领取';
+    if (r1.data.previousProgress < 6) return '连续申购不满7日，无法领取';
+
+    const url = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/receive7DaysContinuouslyApplyingReward';
+    const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
+    if (imaotai.debug) console.log(r2);
+    return r2.code == 2000 ? '领取7日连续申购奖励成功' : r2.message;
+  },
+  /** 领取累计申购奖励 */
+  async cumulativelyApplyingDays() {
+    const qurl = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/7DaysContinuouslyApplyingProgress';
+    type R1 = Res<{ previousDays: number; appliedToday: boolean; rewardReceived: Record<'7' | '14' | '21' | '28', boolean>; }>;
+    const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
+    if (imaotai.debug) console.log(r1);
+    if (r1.code !== 2000) return r1.message || r1.error;
+
+    let msg = '';
+    for (const day of [7, 14, 21, 28] as const) {
+      if (r1.data.rewardReceived[day]) continue;
+      if (r1.data.previousDays + 1 < day) break;
+      // todo: 提交申购
+      msg += `[TODO]请手动领取累计申购[${day}]天奖励`;
+      // const url = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/receive7DaysContinuouslyApplyingReward';
+      // const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
+      // if (imaotai.debug) console.log(r1);
+      // msg += `;[累计申购${day}天]${r2.code == 2000 ? '领取奖励成功' : r2.message}`;
+    }
+
+    return msg || `无可领取奖励[${r1.data.previousDays + 1}]`;
+  },
   async start(inputData = config) {
     const msgList = [];
     let userCount = 0;
@@ -409,14 +448,14 @@ const imaotai = {
             req.setHeaders({ userId });
             msgList.push(`第 ${userCount} 个用户【${userName}_${mobile}】开始任务-------------`);
 
-            if (!user.itemCodes?.length || !user.itemCodes.some((d) => sessionInfo.itemList.some((e) => e.itemCode == d))) {
+            if (!user.itemCodes?.length || !user.itemCodes.some(d => sessionInfo.itemList.some(e => e.itemCode == d))) {
               user.itemCodes = sessionInfo.itemList
-                .filter((d) => {
+                .filter(d => {
                   return !['10056', '2478'].includes(d.itemCode);
                   // const title = String(d.title);
                   // return title.includes('贵州茅台酒') && !title.includes('珍品');
                 })
-                .map((d) => d.itemCode);
+                .map(d => d.itemCode);
             }
 
             for (const item of sessionInfo.itemList) {
@@ -432,8 +471,10 @@ const imaotai = {
                 }
               }
             }
-            const awardMsg = await this.getUserEnergyAward();
-            msgList.push(`领取耐力值：${awardMsg}`);
+
+            msgList.push(`领取耐力值：${await this.getUserEnergyAward()}`);
+            msgList.push(`领取七日连续申购奖励：${await this.receive7DaysApplyingReward()}`);
+            msgList.push(`领取累计申购奖励：${await this.cumulativelyApplyingDays()}`);
           } catch (err) {
             console.error(err);
             msgList.push(`[${userCount}]error: ${(err as Error).message || JSON.stringify(err)}`);
@@ -461,11 +502,11 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
       name: 'mobile',
       message: '请输入登录使用的 11 位手机号码',
       initial: '',
-      validate: (mobile) => /\d{11}/.test(mobile) || '请输入正确的11位手机号码',
+      validate: mobile => /\d{11}/.test(mobile) || '请输入正确的11位手机号码',
     },
   ]);
 
-  const existUser = config.user.find((d) => d.mobile === mobile);
+  const existUser = config.user.find(d => d.mobile === mobile);
   if (existUser) imaotai.user = existUser;
   imaotai.user.mobile = mobile;
 
@@ -487,7 +528,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           name: 'address',
           message: '请输入您当前的位置或要预约的地点（如：北京市朝阳区xxx路xx小区）',
           initial: '',
-          validate: (address) => address.length > 4 || '输入字符太少',
+          validate: address => address.length > 4 || '输入字符太少',
         },
       ]);
       const list = await getGeoByGD(address, inputData.AMAP_KEY);
@@ -495,12 +536,12 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
         type: 'select',
         name: 'idx',
         message: '请选择最近的一个位置',
-        choices: list.map((d) => ({
+        choices: list.map(d => ({
           name: d.formatted_address,
           message: `地址：${d.formatted_address}, 定位：${d.location}`,
         })),
       });
-      const item = list.find((d) => d.formatted_address === idx) || list[0];
+      const item = list.find(d => d.formatted_address === idx) || list[0];
       const [lng, lat] = item.location.split(',');
       const t = {
         province: item.province,
@@ -516,7 +557,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           name: 'province',
           message: '请输入预约的省份（如广东省）',
           initial: imaotai.user.province,
-          validate: async (province) => {
+          validate: async province => {
             imaotai.user.province = province.trim();
             return /省|市$/.test(province.trim()) || '输入格式不正确';
           },
@@ -526,7 +567,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           name: 'city',
           message: '请输入预约的城市（如广州市）',
           initial: imaotai.user.city,
-          validate: async (city) => {
+          validate: async city => {
             imaotai.user.city = city.trim();
             return /市$/.test(city.trim()) || '输入格式不正确';
           },
@@ -535,7 +576,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           type: 'input',
           name: 'location',
           message: '请输入预约位置经纬度，逗号分割',
-          validate: async (location) => {
+          validate: async location => {
             if (!/\d+.\d+,\d+.\d+/.test(location.trim())) return '输入格式不正确';
             const [lng, lat] = location.split(',');
             imaotai.user.lat = +lat < +lng ? lat : lng;
@@ -559,7 +600,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
       type: 'input',
       name: 'vcode',
       message: '请输入接收到的验证码',
-      validate: async (vcode) => {
+      validate: async vcode => {
         if (!/\d+/.test(vcode)) return false;
         const data = await imaotai.login(mobile, vcode);
         if (data?.token) {
@@ -593,35 +634,43 @@ async function shopLotteryStats(shop: IShopInfo, { itemCode = '10213', sessionId
   const sessionList = new Array(days)
     .fill(+sessionId)
     .map((v, idx) => v - idx)
-    .filter((v) => v > 100);
+    .filter(v => v > 100);
 
+  let failedCount = 0;
   for (let sId of sessionList) {
     if (!cacheInfo.lottery[shop.shopId][sId]) cacheInfo.lottery[shop.shopId][sId] = {};
 
     const item = cacheInfo.lottery[shop.shopId][sId][itemCode];
     if (item && (!tryUpdateFailed || item.hitCnt)) continue;
+    // 连续失败次数大于 5，则不再继续获取
+    if (failedCount >= 3) {
+      cacheInfo.lottery[shop.shopId][sId][itemCode] = {} as never;
+      continue;
+    }
 
     const url = `https://static.moutai519.com.cn/mt-backend/mt/lottery/${sId}/${itemCode}/${shop.shopId}/page1.json?csrf_token`;
-    console.log('get:', cyan(url));
     const { data } = await req.get<{ code: string; data: ILottery }>(url);
+    console.log(`[get][${data.data?.lotteryDate ? green('ok') : red('failed') }]`, cyan(url));
     if (data.data?.lotteryDate) {
       const info = (cacheInfo.lottery[shop.shopId][sId][itemCode] = data.data);
       info.rate = Math.floor((info.hitCnt / info.reservationCnt) * 100000) / 1000;
       info.rateAll = Math.floor((info.allItemDetail.hitCnt / info.allItemDetail.reservationCnt) * 100000) / 1000;
+      failedCount = 0;
     } else {
-      if (typeof data !== 'string' || !String(data).includes('xml ')) console.log(color.red(' > 获取失败：'), data);
+      if (imaotai.debug && typeof data !== 'string' || String(data).includes('xml ')) console.log(red(' > 获取失败：'), data);
       cacheInfo.lottery[shop.shopId][sId][itemCode] = {} as never;
+      failedCount++;
     }
   }
   cacheStor.save(cacheInfo);
 
-  const list = sessionList.map((sId) => cacheInfo.lottery[shop.shopId][sId][itemCode]).filter((d) => d?.hitCnt);
+  const list = sessionList.map(sId => cacheInfo.lottery[shop.shopId][sId][itemCode]).filter(d => d?.hitCnt);
   const rankingInfo = list
     .sort((a, b) => b.rate - a.rate)
     .map((v, idx) => `${idx}. 【${dateFormat('yyyy-MM-dd', v?.lotteryDate)}】 中签率：${v.rate}%(${v.hitCnt}/${v.reservationCnt})`);
   const result = { hitCntTotal: 0, reservationCntTotal: 0, rate: 0, rankingInfo, itemCode, shop };
 
-  list.forEach((item) => {
+  list.forEach(item => {
     result.hitCntTotal += item.hitCnt;
     result.reservationCntTotal += item.reservationCnt;
   });
@@ -642,14 +691,13 @@ async function shopLotteryStats(shop: IShopInfo, { itemCode = '10213', sessionId
 program
   .option('-l,--login', '是否位 login 模式，登录模式会写入到配置文件中供预约使用。默认为预约模式')
   .option('-f, --force', '强制模式')
-  .option('-s, --stat [city]', '指定城市中签率统计')
+  .option('-s, --stat [city]', '统计指定城市中签率')
   .option('-d, --debug', '调试模式')
   .action(async (opts: { login: boolean; force?: boolean; debug: boolean; stat?: string }) => {
     assign(config, stor.get());
     if (opts.debug) imaotai.debug = opts.debug;
 
     if (opts.stat) {
-      imaotai.debug = true;
       await imaotai.cityLotteyStat(typeof opts.stat === 'string' ? opts.stat : '广州市');
     } else {
       await imaotai.getAppVersion(false);
@@ -679,5 +727,10 @@ type IShopInfo = {
   name: string;
   shopId: string;
 };
-
 type MallShopItem = { count: number; itemId: string; ownerName: string; maxReserveCount: number; inventory: number };
+type Res<T = any> = {
+  code: number;
+  message?: string;
+  data: T;
+  error?: string;
+};
