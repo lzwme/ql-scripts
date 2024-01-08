@@ -5,7 +5,7 @@
  const $ = new Env("I茅台预约");
 
  执行 `tsx src/active/imaotai.ts -m <手机号>`，可以输入收到的验证码，并请求返回 token，并在当前文件夹下保存
- 自行抓包并在 lzwme_ql_config.json 文件中配置 config 信息
+ 自行抓包并在 lzwme_ql_config.json5 文件中配置 config 信息
  */
 
 import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color } from '@lzwme/fe-utils';
@@ -74,7 +74,7 @@ const cacheInfo = {
   },
   lottery: {} as { [shopId: string]: { [sessionId: string]: { [itemCode: string]: ILottery } } },
 };
-const cacheStor = getConfigStorage<Partial<typeof cacheInfo>>('I茅台预约缓存', resolve(process.cwd(), 'cache/imaotai-cache.json'));
+const cacheStor = getConfigStorage<Partial<typeof cacheInfo>>('I茅台预约缓存', resolve(process.cwd(), 'cache/imaotai-cache.json5'));
 assign(cacheInfo, cacheStor.get());
 
 const req = new Request('', {
@@ -104,17 +104,13 @@ const imaotai = {
     return this.mall;
   },
   async mtAdd(itemId: string, shopId: string, sessionId: number, userId: string) {
-    const MT_K = Date.now();
+    const MT_K = Date.now().toString();
     const { data: mtv } = await req.get<string>(
       `http://82.157.10.108:8086/get_mtv?DeviceID=${this.user.deviceId}&MTk=${MT_K}&version=${config.appVersion}&key=yaohuo`,
       {},
       { 'content-type': 'text/html' }
     );
-    const headers = {
-      ...this.getHeaders({}),
-      'MT-K': MT_K,
-      'MT-V': mtv,
-    };
+    const headers = this.getHeaders({ 'MT-K': MT_K, 'MT-V': mtv });
     const d = { itemInfoList: [{ count: 1, itemId }], sessionId: sessionId, userId: String(userId), shopId: String(shopId) };
     const actParam = aesEncrypt(JSON.stringify(d), AES_KEY, 'aes-256-cbc', AES_IV).toString('base64');
     const params = { ...d, actParam };
@@ -390,7 +386,7 @@ const imaotai = {
       const url = `https://h5.moutai519.com.cn/game/xmyApplyingReward/receiveCumulativelyApplyingReward`;
       const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
       if (imaotai.debug) console.log(r1);
-      msg += `;[累计申购${day}天]${r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message}`;
+      msg += `[累计申购${day}天]${r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message}`;
     }
 
     return msg || `无可领取奖励[${r1.data.previousDays + 1}]`;
@@ -646,7 +642,7 @@ async function shopLotteryStats(shop: IShopInfo, { itemCode = '10213', sessionId
       info.rateAll = Math.floor((info.allItemDetail.hitCnt / info.allItemDetail.reservationCnt) * 100000) / 1000;
       failedCount = 0;
     } else {
-      if ((imaotai.debug && typeof data !== 'string') || String(data).includes('xml ')) console.log(red(' > 获取失败：'), data);
+      if (imaotai.debug && (typeof data !== 'string' || String(data).includes('xml '))) console.log(red(' > 获取失败：'), data);
       cacheInfo.lottery[shop.shopId][sId][itemCode] = {} as never;
       failedCount++;
     }
@@ -687,6 +683,7 @@ program
     if (opts.debug) imaotai.debug = opts.debug;
 
     if (opts.stat) {
+      imaotai.debug = true;
       await imaotai.cityLotteyStat(typeof opts.stat === 'string' ? opts.stat : '广州市');
     } else {
       await imaotai.getAppVersion(false);
