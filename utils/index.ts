@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2024-01-09 09:21:32
+ * @LastEditTime: 2024-01-09 13:38:03
  * @Description:
  */
 import { LiteStorage, Request } from '@lzwme/fe-utils';
@@ -42,8 +42,9 @@ export function getConfigStorage<T extends object = Record<string, any>>(uuid: s
 
 export async function sendNotify(text: string, body: string, params: Record<string, any> = {}, author = '\n本通知 By：lzwme/ql-scripts', isPrint = true) {
   const notifyFilePath = findFile('sendNotify.js');
-  if (!notifyFilePath || isPrint) console.log(`[notify][${text}]\n`, body);
-  if (notifyFilePath) {
+  const isDisableNotify = process.env.LZWME_QL_NOTIFY === 'false';
+  if (!notifyFilePath || isPrint || isDisableNotify) console.log(`[notify][${text}]\n`, body);
+  if (notifyFilePath && !isDisableNotify) {
     await require(notifyFilePath).sendNotify(text, body, params, author);
   }
 }
