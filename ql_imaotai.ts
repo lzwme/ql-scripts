@@ -8,7 +8,7 @@
  自行抓包并在 lzwme_ql_config.json5 文件中配置 config 信息
  */
 
-import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color } from '@lzwme/fe-utils';
+import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color, sleep } from '@lzwme/fe-utils';
 import { getGeoByGD, getConfigStorage, sendNotify } from './utils';
 import { program } from 'commander';
 import { IncomingHttpHeaders } from 'http';
@@ -145,6 +145,10 @@ const imaotai = {
       };
     }>(url);
     const data = r.data.data;
+    if (!data) {
+      console.error(`【${city}】未获取到投放店铺数据`, r.data);
+      return;
+    }
     if (city) {
       data.shops = data.shops.filter(shop => this.mall[shop.shopId]?.cityName === city);
     }
@@ -154,6 +158,8 @@ const imaotai = {
   async getShopItem(sessionId: number, itemId: string, province: string, city: string) {
     const data = await this.queryMallShopList(sessionId, itemId, province, city);
     const selectedShopItem: { shopId: string; item?: MallShopItem } = { shopId: '' };
+
+    if (!data) return;
 
     data.shops = data.shops.filter(s => this.mall[s.shopId]);
 
@@ -445,7 +451,7 @@ const imaotai = {
             for (const item of sessionInfo.itemList) {
               if (user.itemCodes.includes(item.itemCode)) {
                 const shop = await this.getShopItem(sessionInfo.sessionId, item.itemCode, user.province, user.city);
-                if (shop.shopId) {
+                if (shop?.shopId) {
                   const shopInfo = this.mall[shop.shopId];
                   const r = await this.mtAdd(item.itemCode, shop.shopId, sessionInfo.sessionId, userId);
                   msgList.push(`选中店铺：【${shopInfo.name}】【${shopInfo.fullAddress}】【投放量：${shop.item!.inventory}】`);
@@ -678,7 +684,8 @@ program
   .option('-s, --stat [city]', '统计指定城市中签率')
   .option('-d, --debug', '调试模式')
   .action(async (opts: { login: boolean; force?: boolean; debug: boolean; stat?: string }) => {
-    await configStor.reload();
+    // await configStor.reload();
+    await sleep(50);
     assign(config, configStor.get());
     assign(cacheInfo, cacheStor.get());
     if (opts.debug) imaotai.debug = opts.debug;

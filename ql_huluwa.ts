@@ -18,9 +18,9 @@
  https://blog.168api.cn/jsjiami-com-v7-%e5%9c%a8%e7%ba%bf%e8%a7%a3%e5%af%86
  */
 
-import { createHmac } from 'crypto';
+import { createHmac } from 'node:crypto';
+import type { IncomingHttpHeaders } from 'node:http';
 import moment from 'moment';
-import type { IncomingHttpHeaders } from 'http';
 import { assign, Request, sleep } from '@lzwme/fe-utils';
 import { getConfigStorage, sendNotify } from './utils';
 
@@ -127,6 +127,7 @@ async function reservation(appId: string, channelId: string) {
   }
 }
 async function start() {
+  await sleep(50);
   assign(config, stor.get());
 
   for (let [appName, tokens] of Object.entries(config.token)) {
