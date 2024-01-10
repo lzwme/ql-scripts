@@ -75,7 +75,6 @@ const cacheInfo = {
   lottery: {} as { [shopId: string]: { [sessionId: string]: { [itemCode: string]: ILottery } } },
 };
 const cacheStor = getConfigStorage<Partial<typeof cacheInfo>>('I茅台预约缓存', resolve(process.cwd(), 'cache/imaotai-cache.json5'));
-assign(cacheInfo, cacheStor.get());
 
 const req = new Request('', {
   'MT-User-Tag': '0',
@@ -363,7 +362,7 @@ const imaotai = {
     if (imaotai.debug) console.log(r1);
     if (r1.code !== 2000) return r1.message || r1.error;
     if (r1.data.rewardReceived) return '今日已领取';
-    if (r1.data.previousProgress < 6) return '连续申购不满7日，无法领取';
+    if (r1.data.previousProgress < 6) return `[${r1.data.previousProgress}]连续申购不满7日，无法领取`;
 
     const url = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/receive7DaysContinuouslyApplyingReward';
     const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
@@ -389,7 +388,7 @@ const imaotai = {
       msg += `[累计申购${day}天]${r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message}`;
     }
 
-    return msg || `无可领取奖励[${r1.data.previousDays + 1}]`;
+    return msg || `[累计申购${r1.data.previousDays + 1}天]无可领取奖励`;
   },
   async start(inputData = config) {
     const msgList = [];
@@ -679,7 +678,9 @@ program
   .option('-s, --stat [city]', '统计指定城市中签率')
   .option('-d, --debug', '调试模式')
   .action(async (opts: { login: boolean; force?: boolean; debug: boolean; stat?: string }) => {
+    await configStor.reload();
     assign(config, configStor.get());
+    assign(cacheInfo, cacheStor.get());
     if (opts.debug) imaotai.debug = opts.debug;
 
     if (opts.stat) {
