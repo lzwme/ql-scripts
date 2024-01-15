@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2024-01-09 13:38:03
+ * @LastEditTime: 2024-01-15 17:52:34
  * @Description:
  */
 import { LiteStorage, Request } from '@lzwme/fe-utils';
@@ -40,11 +40,26 @@ export function getConfigStorage<T extends object = Record<string, any>>(uuid: s
   return new LiteStorage<T>({ filepath: resolve(process.cwd(), filepath), uuid });
 }
 
-export async function sendNotify(text: string, body: string, params: Record<string, any> = {}, author = '\n本通知 By：lzwme/ql-scripts', isPrint = true) {
+interface SendNotifyParams extends Record<string, any> {
+  hasError?: boolean;
+  notifyType?: 0 | 1 | 2;
+}
+
+export async function sendNotify(text: string, body: string, params: SendNotifyParams = {}, author = '\n本通知 By：lzwme/ql-scripts', isPrint = true) {
   const notifyFilePath = findFile('sendNotify.js');
-  const isDisableNotify = process.env.LZWME_QL_NOTIFY === 'false';
-  if (!notifyFilePath || isPrint || isDisableNotify) console.log(`[notify][${text}]\n`, body);
-  if (notifyFilePath && !isDisableNotify) {
+  const { hasError, notifyType } = params;
+  let needNotify = true;
+
+  if (notifyType == 0) needNotify = false; // 0 - 禁用通知
+  else if (notifyType == 1) { // 1 - 有异常才通知
+    if (!hasError) needNotify = true;
+  } else if (notifyType == 2) { // 2 - 全通知
+    needNotify = true;
+  } else needNotify = process.env.LZWME_QL_NOTIFY !== 'false';
+
+  if (!notifyFilePath || isPrint || !needNotify) console.log(`[notify][${text}]\n`, body);
+
+  if (notifyFilePath && needNotify) {
     await require(notifyFilePath).sendNotify(text, body, params, author);
   }
 }

@@ -6,6 +6,9 @@
 
  执行 `tsx src/active/imaotai.ts -m <手机号>`，可以输入收到的验证码，并请求返回 token，并在当前文件夹下保存
  自行抓包并在 lzwme_ql_config.json5 文件中配置 config 信息
+
+ 支持环境变量配置方式（多个账号以 & 或换行分割）：
+ export QL_IMAOTAI=token=xxx;tokenWap=xxx;city=北京市;province=北京市&token=xxx...
  */
 
 import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color, sleep } from '@lzwme/fe-utils';
@@ -24,6 +27,8 @@ const itemMap: Record<string, string> = {
   10942: '贵州茅台酒（甲辰龙年）x2',
 };
 const config = {
+  /** 发送通知的方式 */
+  notifyType: 1 as 0 | 1 | 2, // 0: 不通知； 1： 异常才通知； 2： 全都通知
   AMAP_KEY: '', // 高德地图 key，用于命令行方式登录获取经纬度，可以不用
   appVersion: '1.5.6', // APP 版本，可以不写，会尝试自动获取
   // 预约店铺策略。max: 最大投放量；maxRate: 近30日中签率最高；nearby: 距离最近店铺（默认）; keyword: shopKeywords 列表优先
@@ -93,6 +98,8 @@ const imaotai = {
   mall: {} as {
     [shopId: string]: IShopInfo;
   },
+  /** 是否发生了处理异常 */
+  hasError: false,
   user: { ...defautUser },
   async getMap() {
     if (!Object.keys(this.mall).length) {
@@ -357,6 +364,7 @@ const imaotai = {
   async getUserEnergyAward() {
     const headers = this.getHeaders({ Referer: 'https://h5.moutai519.com.cn/gux/game/main?appConfig=2_1_2' }, 'h5');
     const r = await req.post('https://h5.moutai519.com.cn/game/isolationPage/getUserEnergyAward', {}, headers);
+    if (r.data.code !== 2000) this.hasError = true;
     return r.data.message || '领取奖励成功';
   },
   /** 领取 7 日连续申购 */
@@ -366,13 +374,17 @@ const imaotai = {
     type R1 = Res<{ previousProgress: number; appliedToday: boolean; rewardReceived: boolean }>;
     const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r1);
-    if (r1.code !== 2000) return r1.message || r1.error;
+    if (r1.code !== 2000) {
+      this.hasError = true;
+      return r1.message || r1.error;
+    }
     if (r1.data.rewardReceived) return '今日已领取';
     if (r1.data.previousProgress < 6) return `[${r1.data.previousProgress}]连续申购不满7日，无法领取`;
 
     const url = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/receive7DaysContinuouslyApplyingReward';
     const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r2);
+    if (r2.code !== 2000) this.hasError = true;
     return r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message;
   },
   /** 领取累计申购奖励 */
@@ -381,7 +393,10 @@ const imaotai = {
     type R1 = Res<{ previousDays: number; appliedToday: boolean; rewardReceived: Record<'7' | '14' | '21' | '28', boolean> }>;
     const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r1);
-    if (r1.code !== 2000) return r1.message || r1.error;
+    if (r1.code !== 2000) {
+      this.hasError = true;
+      return r1.message || r1.error;
+    }
 
     let msg = '';
     for (const day of [7, 14, 21, 28] as const) {
@@ -391,6 +406,7 @@ const imaotai = {
       const url = `https://h5.moutai519.com.cn/game/xmyApplyingReward/receiveCumulativelyApplyingReward`;
       const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
       if (imaotai.debug) console.log(r1);
+      if (r2.code !== 2000) this.hasError = true;
       msg += `[累计申购${day}天]${r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message}`;
     }
 
@@ -406,6 +422,7 @@ const imaotai = {
 
       if (!sessionInfo.sessionId) {
         msgList.push(`获取 sessionId 失败: ${JSON.stringify(sessionInfo)}`);
+        this.hasError = true;
       } else {
         for (let user of inputData.user) {
           userCount++;
@@ -427,11 +444,12 @@ const imaotai = {
               } as Partial<typeof defautUser>
             );
 
-            if (user.disabled) continue;
+            if (user.disabled || !user.token) continue;
 
             const { userName, userId, mobile } = await this.getUserId();
             if (!userId) {
               msgList.push(`第 ${userCount} 个用户 token 失效，请重新登录`);
+              this.hasError = true;
               continue;
             }
 
@@ -458,6 +476,7 @@ const imaotai = {
                   msgList.push(`${item.itemCode}_${item.title}------${r}`);
                 } else {
                   msgList.push(`【${item.itemCode}_${item.title}】未获取到可预约的店铺，未能预约`);
+                  this.hasError = true;
                 }
               }
             }
@@ -468,6 +487,7 @@ const imaotai = {
           } catch (err) {
             console.error(err);
             msgList.push(`[${userCount}]error: ${(err as Error).message || JSON.stringify(err)}`);
+            this.hasError = true;
           }
         }
       }
@@ -475,8 +495,9 @@ const imaotai = {
       console.error(err);
       msgList.push(`error: ${(err as Error).message || JSON.stringify(err)}`);
     }
+    console.log(`执行完毕。共执行了 ${userCount} 个账号`);
 
-    await sendNotify('I茅台预约', msgList.join('\n'));
+    await sendNotify('I茅台预约', msgList.join('\n'), { notifyType: config.notifyType, hasError: imaotai.hasError });
   },
 };
 
@@ -689,6 +710,28 @@ program
     assign(config, configStor.get());
     assign(cacheInfo, cacheStor.get());
     if (opts.debug) imaotai.debug = opts.debug;
+
+    // 支持按 deviceId 从环境变量读取已配置的值
+    if (process.env.QL_IMAOTAI) {
+      const list = process.env.QL_IMAOTAI.split(process.env.QL_IMAOTAI.includes('&') ? '&' : '\n');
+      list.forEach(line => {
+        const item: Partial<typeof config['user'][0]> = {};
+        line.split(';').map(item => item.split('=').map(d=>d.trim())).forEach(([key, value]) => {
+          if (!key || !value) return;
+          // @ts-ignore
+          item[key] = value;
+        });
+
+        if (item.deviceId && item.token) {
+          const o = config.user.find(d => d.deviceId === item.deviceId);
+          if (o) Object.assign(o, item);
+          else if (item.city && item.province) {
+            // todo: 支持环境变量新增配置，支持配置城市和省份等信息
+            config.user.push(item as never);
+          }
+        }
+      });
+    }
 
     if (opts.stat) {
       imaotai.debug = true;
