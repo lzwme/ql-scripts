@@ -5,7 +5,7 @@
  * @LastEditTime: 2024-01-15 17:52:34
  * @Description:
  */
-import { LiteStorage, Request } from '@lzwme/fe-utils';
+import { LiteStorage, Request, color } from '@lzwme/fe-utils';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve, sep } from 'node:path';
@@ -36,6 +36,8 @@ export function getConfigStorage<T extends object = Record<string, any>>(uuid: s
   if (!filepath) {
     filepath = findFile('lzwme_ql_config.json5') || findFile('lzwme_ql_config.json') || 'lzwme_ql_config.json';
   }
+
+  if (!existsSync(filepath)) console.warn(`未发现配置文件。请创建：${color.cyan(filepath)}`);
 
   return new LiteStorage<T>({ filepath: resolve(process.cwd(), filepath), uuid });
 }

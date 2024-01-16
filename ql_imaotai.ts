@@ -12,11 +12,11 @@
  */
 
 import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color, sleep } from '@lzwme/fe-utils';
-import { getGeoByGD, getConfigStorage, sendNotify } from './utils';
 import { program } from 'commander';
-import { IncomingHttpHeaders } from 'http';
-import { homedir, hostname } from 'os';
-import { resolve } from 'path';
+import { IncomingHttpHeaders } from 'node:http';
+import { homedir, hostname } from 'node:os';
+import { resolve } from 'node:path';
+import { getGeoByGD, getConfigStorage, sendNotify } from './utils';
 
 const itemMap: Record<string, string> = {
   10213: '贵州茅台酒（癸卯兔年）',
