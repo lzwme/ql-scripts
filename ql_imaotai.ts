@@ -67,7 +67,7 @@ config.user[0] = assign({} as any, defautUser);
 
 const { green, red, cyan, cyanBright } = color;
 const today = dateFormat('yyyy-MM-dd', new Date());
-const time_keys = new Date(`${today}T00:00:00`).getTime();
+const time_keys = new Date().setHours(0, 0, 0, 0);
 const configStor = getConfigStorage('I茅台预约');
 const cacheInfo = {
   info: {
@@ -109,14 +109,23 @@ const imaotai = {
     }
     return this.mall;
   },
+  async getMtv(_MT_K: string) {
+    return '';
+    // try {
+    //   const { data: mtv } = await req.get<string>(
+    //     `http://82.157.10.108:8086/get_mtv?DeviceID=${this.user.deviceId}&MTk=${MT_K}&version=${config.appVersion}&key=yaohuo`,
+    //     {},
+    //     { 'content-type': 'text/html' },
+    //     { timeout: 1000 },
+    //   );
+    //   return mtv;
+    // } catch (e) {
+    //   return '';
+    // }
+  },
   async mtAdd(itemId: string, shopId: string, sessionId: number, userId: string) {
     const MT_K = Date.now().toString();
-    const { data: mtv } = await req.get<string>(
-      `http://82.157.10.108:8086/get_mtv?DeviceID=${this.user.deviceId}&MTk=${MT_K}&version=${config.appVersion}&key=yaohuo`,
-      {},
-      { 'content-type': 'text/html' }
-    );
-    const headers = this.getHeaders({ 'MT-K': MT_K, 'MT-V': mtv });
+    const headers = this.getHeaders({ 'MT-K': MT_K, 'MT-V': await this.getMtv(MT_K) });
     const d = { itemInfoList: [{ count: 1, itemId }], sessionId: sessionId, userId: String(userId), shopId: String(shopId) };
     const actParam = aesEncrypt(JSON.stringify(d), AES_KEY, 'aes-256-cbc', AES_IV).toString('base64');
     const params = { ...d, actParam };
@@ -448,13 +457,13 @@ const imaotai = {
 
             const { userName, userId, mobile } = await this.getUserId();
             if (!userId) {
-              msgList.push(`第 ${userCount} 个用户 token 失效，请重新登录`);
+              msgList.push(`🙂 第 ${userCount} 个用户 token 失效，请重新登录`);
               this.hasError = true;
               continue;
             }
 
             req.setHeaders({ userId });
-            msgList.push(`第 ${userCount} 个用户【${userName}_${mobile}】开始任务-------------`);
+            msgList.push(`😀 第 ${userCount} 个用户【${userName}_${mobile}】开始任务`);
 
             if (!user.itemCodes?.length || !user.itemCodes.some(d => sessionInfo.itemList.some(e => e.itemCode == d))) {
               user.itemCodes = sessionInfo.itemList
@@ -472,18 +481,18 @@ const imaotai = {
                 if (shop?.shopId) {
                   const shopInfo = this.mall[shop.shopId];
                   const r = await this.mtAdd(item.itemCode, shop.shopId, sessionInfo.sessionId, userId);
-                  msgList.push(`选中店铺：【${shopInfo.name}】【${shopInfo.fullAddress}】【投放量：${shop.item!.inventory}】`);
-                  msgList.push(`${item.itemCode}_${item.title}------${r}`);
+                  msgList.push(`✅ 选中店铺：【${shopInfo.name}】【${shopInfo.fullAddress}】【投放量：${shop.item!.inventory}】`);
+                  msgList.push(`➡️ [${item.itemCode}_${item.title}]${r}`);
                 } else {
-                  msgList.push(`【${item.itemCode}_${item.title}】未获取到可预约的店铺，未能预约`);
+                  msgList.push(`❌ [${item.itemCode}_${item.title}]未获取到可预约的店铺，未能预约`);
                   this.hasError = true;
                 }
               }
             }
 
-            msgList.push(`领取耐力值：${await this.getUserEnergyAward()}`);
-            msgList.push(`领取七日连续申购奖励：${await this.receive7DaysApplyingReward()}`);
-            msgList.push(`领取累计申购奖励：${await this.cumulativelyApplyingDays()}`);
+            msgList.push(`🔸领取耐力值：${await this.getUserEnergyAward()}`);
+            msgList.push(`🔸领取连续申购：${await this.receive7DaysApplyingReward()}`);
+            msgList.push(`🔸领取累计申购：${await this.cumulativelyApplyingDays()}`);
           } catch (err) {
             console.error(err);
             msgList.push(`[${userCount}]error: ${(err as Error).message || JSON.stringify(err)}`);
@@ -493,7 +502,7 @@ const imaotai = {
       }
     } catch (err) {
       console.error(err);
-      msgList.push(`error: ${(err as Error).message || JSON.stringify(err)}`);
+      msgList.push(`❌ error: ${(err as Error).message || JSON.stringify(err)}`);
     }
     console.log(`执行完毕。共执行了 ${userCount} 个账号`);
 
