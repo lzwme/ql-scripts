@@ -85,12 +85,12 @@ function formatHeaders(method: 'get' | 'post', pathname: string, paramsStr: stri
 }
 function post<T = any>(pathname: string, data: Record<string, unknown>) {
   const headers = formatHeaders('post', pathname, JSON.stringify(data));
-  return req.post<{ code: string; message: string; data: T }>(constants.apiUrl + pathname, data, headers).then(d => d.data);
+  return req.post<{ code: string; message: string; data: T }>(constants.apiUrl + pathname, data, headers).then((d) => d.data);
 }
 async function getAkSk(appId: string) {
   const { data } = await req.post(`${constants.akskUrl}/api/getInfo`, { appId });
   if (data.code == '10000') assign(cache, data.data); // data.data.ak、sk
-  else logPrint(`获取 ak/sk 异常：${data?.message || data }`);
+  else logPrint(`获取 ak/sk 异常：${data?.message || data}`);
 }
 async function reservation(appId: string, channelId: string) {
   try {
@@ -132,16 +132,14 @@ async function start() {
 
   for (let [appName, tokens] of Object.entries(config.token)) {
     if (/^[a-zA-Z]$/.test(appName)) {
-        const item = Object.entries(constants.app).find(d => d[1].key === appName);
-        if (!item) continue;
-        appName = item[0];
+      const item = Object.entries(constants.app).find((d) => d[1].key === appName);
+      if (!item) continue;
+      appName = item[0];
     }
 
-    if (!tokens.length) {
-      const key = Object.entries(constants.app).find(d => d[0] === appName)?.[1].key;
-      if (key) tokens.push(...(process.env[`${key}_COOKIE`] || process.env[`${key}_TOKEN`] || '').split(SPLIT).filter(Boolean));
-      if (!tokens.length) continue;
-    }
+    const key = Object.entries(constants.app).find((d) => d[0] === appName)?.[1].key;
+    if (key) tokens = (process.env[`${key}_COOKIE`] || process.env[`${key}_TOKEN`] || '').split(SPLIT).filter(Boolean);
+    if (!tokens.length) continue;
 
     const constant = constants.app[appName as keyof typeof constants.app];
     logPrint(`${appName}预约开始`);
