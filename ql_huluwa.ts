@@ -127,7 +127,7 @@ async function reservation(appId: string, channelId: string) {
   }
 }
 async function start() {
-  await sleep(50);
+  await stor.ready();
   assign(config, stor.get());
 
   for (let [appName, tokens] of Object.entries(config.token)) {

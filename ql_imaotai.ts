@@ -714,8 +714,7 @@ program
   .option('-s, --stat [city]', '统计指定城市中签率')
   .option('-d, --debug', '调试模式')
   .action(async (opts: { login: boolean; force?: boolean; debug: boolean; stat?: string }) => {
-    // await configStor.reload();
-    await sleep(50);
+    await configStor.ready();
     assign(config, configStor.get());
     assign(cacheInfo, cacheStor.get());
     if (opts.debug) imaotai.debug = opts.debug;
@@ -750,7 +749,7 @@ program
       opts.login ? promptLogin(opts) : imaotai.start();
     }
   })
-  .parse();
+  .parseAsync();
 
 type ILottery = {
   rate: number;
