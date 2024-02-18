@@ -8,7 +8,7 @@
 # ql repo <repo_url> <whitelist> <blacklist> <dependence> <branch> <extensions>
 ql repo https://github.com/lzwme/ql_scripts.git "ql_|ql-" "backup|todo|deprecated" "utils"
 cd /ql/scripts
-pnpm add @lzwme/fe-utils commander enquirer moment json5
+pnpm add @lzwme/fe-utils commander enquirer moment json5 crypto-js
 ```
 
 ### 面板方式
