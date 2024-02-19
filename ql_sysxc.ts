@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-19 13:34:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-19 18:05:33
+ * @LastEditTime: 2024-02-19 18:32:11
  * @Description: 书亦烧仙草小程序签到
 
  cron: 11 10 * * *
@@ -11,21 +11,20 @@
  */
 import CryptoJS from 'crypto-js';
 import axios from 'axios';
+import { sendNotify } from './utils';
 type AnyObject = { [key: string]: any };
 
 const req = {
   async get(url: string, headers: AnyObject) {
     try {
-      const result = await axios.get(url, { headers });
-      return result.data;
+      return axios.get(url, { headers }).then(d => d.data);
     } catch (err) {
       console.log(`error:${(err as Error).message}`);
     }
   },
   async post(url: string, data: AnyObject | string, headers: AnyObject) {
     try {
-      const result = await axios.post(url, data, { headers });
-      return result.data;
+      return axios.post(url, data, { headers }).then(d => d.data);
     } catch (err) {
       console.log(`error:${(err as Error).message}`);
     }
@@ -74,6 +73,7 @@ async function signIn(auth: string) {
   let res = await req.post(url, data, headers);
   const { secretKey, token, jigsawImageBase64: img1, originalImageBase64: img2 } = res.data;
   const x = await slider_match(img1, img2);
+  if (!x) return '验证码识别失败！';
 
   url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/checkVCode';
   const pointJson = AES_Encrypt(JSON.stringify({ x, y: 5 }), secretKey);
@@ -83,18 +83,23 @@ async function signIn(auth: string) {
   url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/insertSignInV3';
   res = await req.post(url, `{"captchaVerification":"${captchaVerification}"}`, headers);
   //   console.log('captchaVerification', res);
-  if (res.resultMsg == 'success') console.log('签到成功');
-  else console.log(res.resultMsg);
+  if (res.resultMsg == 'success') return '';
+  return res.resultMsg;
 }
 
 (async () => {
   const token = process.env.sysxc || '';
   const sep = token.includes('&') ? '&' : '\n';
   let arr = token.split(sep);
-  if (!arr) return await console.log('未填写token');
+  if (!token || !arr) return await console.log('未填写token');
+  const msgs = [];
+  let hasError = false;
 
   for (let index = 0; index < arr.length; index++) {
-    console.log(`账号${index + 1}:`);
-    await signIn(arr[index]);
+    msgs.push(`账号${index + 1}:`);
+    const errmsg = await signIn(arr[index]);
+    msgs.push(errmsg || '签到成功');
+    if (errmsg) hasError = true;
   }
+  await sendNotify('书亦烧仙草', msgs.join('\n'), { hasError });
 })();

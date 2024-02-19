@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2024-01-15 17:52:34
+ * @LastEditTime: 2024-02-20 10:30:29
  * @Description:
  */
 import { LiteStorage, Request, color } from '@lzwme/fe-utils';
@@ -45,17 +45,18 @@ export function getConfigStorage<T extends object = Record<string, any>>(uuid: s
 interface SendNotifyParams extends Record<string, any> {
   hasError?: boolean;
   notifyType?: 0 | 1 | 2;
+  exit?: boolean;
 }
 
 export async function sendNotify(text: string, body: string, params: SendNotifyParams = {}, author = '\n本通知 By：lzwme/ql-scripts', isPrint = true) {
   const notifyFilePath = findFile('sendNotify.js');
-  const { hasError, notifyType } = params;
+  const { hasError, notifyType = Number(process.env.LZWME_QL_NOTIFY_TYPE) || 1, exit = true } = params;
   let needNotify = true;
 
-  if (notifyType == 0) needNotify = false; // 0 - 禁用通知
-  else if (notifyType == 1) { // 1 - 有异常才通知
-    if (!hasError) needNotify = true;
-  } else if (notifyType == 2) { // 2 - 全通知
+  if (notifyType === 0) needNotify = false; // 0 - 禁用通知
+  else if (notifyType === 1) { // 1 - 有异常才通知
+    needNotify = hasError === true;
+  } else if (notifyType === 2) { // 2 - 全通知
     needNotify = true;
   } else needNotify = process.env.LZWME_QL_NOTIFY !== 'false';
 
@@ -64,6 +65,8 @@ export async function sendNotify(text: string, body: string, params: SendNotifyP
   if (notifyFilePath && needNotify) {
     await require(notifyFilePath).sendNotify(text, body, params, author);
   }
+
+  exit && process.exit(0);
 }
 
 /** 根据指定的位置返回附近位置及经纬度列表 */
