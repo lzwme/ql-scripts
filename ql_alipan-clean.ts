@@ -7,7 +7,7 @@
       username=[admin];password=xxx;token=认证token;dir=xxx;host=xxx;limit=50
  参数说明：
   username 默认为 admin
-  password 管理员密码。可执行该命令获取： ./alist admin 
+  password 管理员密码。可执行该命令获取： ./alist admin
   token 登录认证 token，与 passord 设置其一即可
   host 为小雅访问地址，默认值为： http://127.0.0.1:5678
   dir 为小雅挂载阿里云盘缓存目录的路径，默认为： /📀我的阿里云盘/资源盘/小雅转存
@@ -28,7 +28,7 @@ const config = {
   username: 'admin',
   password: '', // 获取方法： ./alist admin
   token: '',
-  limit: 50,
+  limit: 10,
 };
 const req = new Request('', { 'content-type': 'application/json' });
 
