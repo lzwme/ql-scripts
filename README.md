@@ -33,6 +33,14 @@ pnpm add @lzwme/fe-utils commander enquirer moment json5 crypto-js axios
 配置文件及格式可参考文件：[lzwme_ql_config.json5](./sample/lzwme_ql_config.json5)
 新增环境变量：`LZWME_QL_CONFIG_FILE`，值为 `/ql/data/scripts/lzwme_ql_config.json5`。后续各脚本配置都会从此路径文件读取。
 
+环境变量：
+
+- `process.env.LZWME_QL_CONFIG_FILE` 通用配置文件的路径。默认从当前目录及服务目录查找  `lzwme_ql_config.json5` 文件。
+- `process.env.LZWME_QL_NOTIFY_TYPE` 配置通知策略：
+    - 0 - 关闭通知
+    - 1 - 仅发送异常时通知。`默认值`
+    - 2 - 全通知
+
 ## 其他相关
 
 ### 获取指定位置的经纬度

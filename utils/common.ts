@@ -2,9 +2,10 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-23 10:57:23
+ * @LastEditTime: 2024-02-23 14:31:45
  * @Description:
  */
+
 import { LiteStorage, Request, color, NLogger } from '@lzwme/fe-utils';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -53,7 +54,7 @@ interface SendNotifyParams extends Record<string, any> {
 
 export async function sendNotify(title: string, body: string, params: SendNotifyParams = {}, author = '\n本通知 By：lzwme/ql-scripts') {
   const notifyFilePath = findFile('sendNotify.js');
-  const { hasError, notifyType = Number(process.env.LZWME_QL_NOTIFY_TYPE) || 1, isPrint = true, exit = true } = params;
+  const { hasError, notifyType = Number(process.env.LZWME_QL_NOTIFY_TYPE) || 1, isPrint, exit = true } = params;
   let needNotify = true;
 
   if (notifyType === 0) needNotify = false; // 0 - 禁用通知
@@ -63,7 +64,7 @@ export async function sendNotify(title: string, body: string, params: SendNotify
     needNotify = true;
   } else needNotify = process.env.LZWME_QL_NOTIFY !== 'false';
 
-  if (isPrint && (!notifyFilePath || !needNotify)) console.log(`[notify][${title}]\n`, body);
+  if (isPrint !== false && (isPrint || !notifyFilePath || !needNotify)) console.log(`[notify][${title}]\n`, body);
 
   if (notifyFilePath && needNotify) {
     await require(notifyFilePath).sendNotify(title, body, params, author);

@@ -1,3 +1,10 @@
+/*
+ * @Author: renxia
+ * @Date: 2024-02-20 10:31:21
+ * @LastEditors: renxia
+ * @LastEditTime: 2024-02-23 15:11:00
+ * @Description:
+ */
 import { type AnyObject, Request, generateUuid } from '@lzwme/fe-utils';
 import { getCacheStorage, sendNotify } from './common';
 
@@ -9,6 +16,7 @@ interface EnvOptions {
 }
 
 export class Env {
+  public index = 0;
   private startTime = Date.now();
   private msgs: string[] = [];
   private options: EnvOptions = {
@@ -17,7 +25,7 @@ export class Env {
   public hasError = false;
   public req = new Request(undefined, { 'content-type': 'application/json' });
   public storage: ReturnType<typeof getCacheStorage<AnyObject>>;
-  constructor(public name: string, options?: AnyObject) {
+  constructor(public name: string, options?: EnvOptions) {
     this.log(`[${this.name}]开始运行\n`, 'debug');
     this.storage = getCacheStorage(name);
     if (options) Object.assign(this.options, options);
@@ -39,11 +47,12 @@ export class Env {
   public async runTask(Task: any, usersConfig: any[]) {
     try {
       for (const [idx, userConfig] of Object.entries(usersConfig)) {
-        this.log(`账号${ +idx + 1 }：`);
+        this.index = +idx + 1;
+        this.log(`账号${this.index}：`);
         if (typeof Task.prototype?.start === 'function') {
-          const t = new Task(userConfig);
+          const t = new Task(userConfig, this.index);
           await t.start();
-        } else await Task(userConfig);
+        } else await Task(userConfig, this.index);
       }
     } catch (e) {
       const error = e as Error;
@@ -71,9 +80,12 @@ export class Env {
     if (gap > 0) delay += Math.floor(Math.random() * gap);
     return new Promise(rs => setTimeout(rs, delay));
   }
+  public getMsgs() {
+    return this.msgs.join('\n');
+  }
   public async done() {
     if (this.options.notifyFlag !== false && this.msgs.length) {
-      await sendNotify(this.name, this.msgs.join('\n'), { hasError: this.hasError, isPrint: false, exit: false });
+      await sendNotify(this.name, this.getMsgs(), { hasError: this.hasError, isPrint: false, exit: false });
     }
     this.log(`运行结束，共运行了${Math.ceil((Date.now() - this.startTime) / 1000)}秒`);
     process.exit(this.hasError ? 1 : 0);
