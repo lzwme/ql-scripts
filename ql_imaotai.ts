@@ -11,7 +11,7 @@
  export QL_IMAOTAI=token=xxx;tokenWap=xxx;city=北京市;province=北京市&token=xxx...
  */
 
-import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color, sleep } from '@lzwme/fe-utils';
+import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color } from '@lzwme/fe-utils';
 import { program } from 'commander';
 import { IncomingHttpHeaders } from 'node:http';
 import { homedir, hostname } from 'node:os';

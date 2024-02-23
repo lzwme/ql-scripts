@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-19 13:34:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-20 15:06:48
+ * @LastEditTime: 2024-02-23 12:02:06
  * @Description: 书亦烧仙草小程序签到
 
  cron: 11 10 * * *
@@ -16,9 +16,7 @@ import { Env } from './utils';
 const $ = new Env('书亦烧仙草签到');
 $.init(signIn, 'sysxc').then(() => $.done());
 
-async function slider_match(img1: string, img2: string, type = 'api') {
-  const ocrApi = process.env.LZWME_OCR_API;
-
+async function slider_match(img1: string, img2: string, type = 'api', ocrApi = process.env.LZWME_OCR_API) {
   if (ocrApi && type === 'api') {
     const b = await fetch(ocrApi, {
       method: 'post',
@@ -56,16 +54,27 @@ async function signIn(auth: string) {
   let url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/getVCode';
   const { data: vCodeRes } = await axios.post(url, { captchaType: 'blockPuzzle', clientUid: '', ts: new Date().getTime() }, { headers });
   const { secretKey, token, jigsawImageBase64: img1, originalImageBase64: img2 } = vCodeRes.data;
-  const x = await slider_match(img1, img2);
-  if (!x) return $.log('验证码识别失败！', 'error');
 
-  url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/checkVCode';
-  const pointJson = AES_Encrypt(JSON.stringify({ x, y: 5 }), secretKey);
-  const { data: checkVCodeRes } = await axios.post(url, { captchaType: 'blockPuzzle', pointJson, token }, { headers });
-  if (checkVCodeRes.resultMsg) console.log(checkVCodeRes.resultMsg);
+  if (process.env.LZWME_OCR_API) {
+    const x = await slider_match(img1, img2);
+    if (!x) return $.log('验证码识别失败！', 'error');
+
+    url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/checkVCode';
+    const pointJson = AES_Encrypt(JSON.stringify({ x, y: 5 }), secretKey);
+    const { data: checkVCodeRes } = await axios.post(url, { captchaType: 'blockPuzzle', pointJson, token }, { headers });
+    if (checkVCodeRes.resultMsg) console.log(checkVCodeRes.resultMsg);
+  } else $.log('未配置验证码识别 API');
 
   const captchaVerification = AES_Encrypt(token + '---' + JSON.stringify({ x, y: 5 }), secretKey);
   url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/insertSignInV3';
   const { data: signInRes } = await axios.post(url, `{"captchaVerification":"${captchaVerification}"}`, { headers });
   signInRes.resultMsg == 'success' ? $.log('签到成功') : $.log(signInRes.resultMsg, 'error');
+
+  url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/member/points/list?pageNum=1&pageSize=10&type=0&isQueryWillExpire=0';
+  const { data: listRes } = await axios.get(url, { headers });
+  if (listRes.resultCode == 0) {
+    $.log(`当前积分：${listRes.extFields.availablePoints}`);
+  } else {
+    $.log(`获取积分失败: ${listRes.resultMsg}`,  'error');
+  }
 }

@@ -2,13 +2,15 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-20 14:18:22
+ * @LastEditTime: 2024-02-23 10:57:23
  * @Description:
  */
-import { LiteStorage, Request, color } from '@lzwme/fe-utils';
+import { LiteStorage, Request, color, NLogger } from '@lzwme/fe-utils';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve, sep } from 'node:path';
+
+export const logger = new NLogger('[ql-scripts]');
 
 export function findFile(filename: string, dirs = [process.cwd(), __dirname]) {
   const dirList = new Set([...dirs, process.cwd(), __dirname, homedir()]);
@@ -61,7 +63,7 @@ export async function sendNotify(title: string, body: string, params: SendNotify
     needNotify = true;
   } else needNotify = process.env.LZWME_QL_NOTIFY !== 'false';
 
-  if (!notifyFilePath || isPrint || !needNotify) console.log(`[notify][${title}]\n`, body);
+  if (isPrint && (!notifyFilePath || !needNotify)) console.log(`[notify][${title}]\n`, body);
 
   if (notifyFilePath && needNotify) {
     await require(notifyFilePath).sendNotify(title, body, params, author);
