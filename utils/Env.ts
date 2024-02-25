@@ -83,7 +83,10 @@ export class Env {
   public getMsgs() {
     return this.msgs.join('\n');
   }
+  private end = false;
   public async done() {
+    if (this.end) return;
+    this.end = true;
     if (this.options.notifyFlag !== false && this.msgs.length) {
       await sendNotify(this.name, this.getMsgs(), { hasError: this.hasError, isPrint: false, exit: false });
     }

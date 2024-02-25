@@ -22,7 +22,7 @@ async function slider_match(img1: string, img2: string, type = 'api', ocrApi = p
       method: 'post',
       headers: { 'Content-Type': 'application/json', origin: '*', token: process.env.LZWME_OCR_TOKEN || '' },
       body: JSON.stringify({ mode: 'slide_match', base64: img1, originalBase64: img2 }),
-    }).then(d => d.json());
+    }).then((d) => d.json());
     if (!b.data?.maxLoc.x) console.log('[ocr] decode by lzw:', b);
     return b.data?.maxLoc.x;
   } else {
@@ -54,16 +54,13 @@ async function signIn(auth: string) {
   let url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/getVCode';
   const { data: vCodeRes } = await axios.post(url, { captchaType: 'blockPuzzle', clientUid: '', ts: new Date().getTime() }, { headers });
   const { secretKey, token, jigsawImageBase64: img1, originalImageBase64: img2 } = vCodeRes.data;
+  const x = await slider_match(img1, img2);
+  if (!x) return $.log('验证码识别失败！', 'error');
 
-  if (process.env.LZWME_OCR_API) {
-    const x = await slider_match(img1, img2);
-    if (!x) return $.log('验证码识别失败！', 'error');
-
-    url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/checkVCode';
-    const pointJson = AES_Encrypt(JSON.stringify({ x, y: 5 }), secretKey);
-    const { data: checkVCodeRes } = await axios.post(url, { captchaType: 'blockPuzzle', pointJson, token }, { headers });
-    if (checkVCodeRes.resultMsg) console.log(checkVCodeRes.resultMsg);
-  } else $.log('未配置验证码识别 API');
+  url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/checkVCode';
+  const pointJson = AES_Encrypt(JSON.stringify({ x, y: 5 }), secretKey);
+  const { data: checkVCodeRes } = await axios.post(url, { captchaType: 'blockPuzzle', pointJson, token }, { headers });
+  if (checkVCodeRes.resultMsg) console.log(checkVCodeRes.resultMsg);
 
   const captchaVerification = AES_Encrypt(token + '---' + JSON.stringify({ x, y: 5 }), secretKey);
   url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/insertSignInV3';
@@ -75,6 +72,6 @@ async function signIn(auth: string) {
   if (listRes.resultCode == 0) {
     $.log(`当前积分：${listRes.extFields.availablePoints}`);
   } else {
-    $.log(`获取积分失败: ${listRes.resultMsg}`,  'error');
+    $.log(`获取积分失败: ${listRes.resultMsg}`, 'error');
   }
 }
