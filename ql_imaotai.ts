@@ -16,8 +16,9 @@ import { program } from 'commander';
 import { IncomingHttpHeaders } from 'node:http';
 import { homedir, hostname } from 'node:os';
 import { resolve } from 'node:path';
-import { getGeoByGD, getConfigStorage, sendNotify } from './utils';
+import { getGeoByGD, getConfigStorage, Env } from './utils';
 
+const $ = new Env('I茅台预约');
 const itemMap: Record<string, string> = {
   10213: '贵州茅台酒（癸卯兔年）',
   10056: '茅台1935',
@@ -27,10 +28,8 @@ const itemMap: Record<string, string> = {
   10942: '贵州茅台酒（甲辰龙年）x2',
 };
 const config = {
-  /** 发送通知的方式 */
-  notifyType: 1 as 0 | 1 | 2, // 0: 不通知； 1： 异常才通知； 2： 全都通知
   AMAP_KEY: '', // 高德地图 key，用于命令行方式登录获取经纬度，可以不用
-  appVersion: '1.5.6', // APP 版本，可以不写，会尝试自动获取
+  appVersion: '1.5.9', // APP 版本，可以不写，会尝试自动获取
   // 预约店铺策略。max: 最大投放量；maxRate: 近30日中签率最高；nearby: 距离最近店铺（默认）; keyword: shopKeywords 列表优先
   type: 'nearby' as 'max' | 'maxRate' | 'nearby' | 'keyword',
   shopKeywords: [], // 店铺白名单：用于指定高优先级的店铺，type=keyword 时，优先查找符合列表关键字的店铺申购
@@ -98,8 +97,6 @@ const imaotai = {
   mall: {} as {
     [shopId: string]: IShopInfo;
   },
-  /** 是否发生了处理异常 */
-  hasError: false,
   user: { ...defautUser },
   async getMap() {
     if (!Object.keys(this.mall).length) {
@@ -373,7 +370,7 @@ const imaotai = {
   async getUserEnergyAward() {
     const headers = this.getHeaders({ Referer: 'https://h5.moutai519.com.cn/gux/game/main?appConfig=2_1_2' }, 'h5');
     const r = await req.post('https://h5.moutai519.com.cn/game/isolationPage/getUserEnergyAward', {}, headers);
-    if (r.data.code !== 2000) this.hasError = true;
+    if (r.data.code !== 2000) $.hasError = true;
     return r.data.message || '领取奖励成功';
   },
   /** 领取 7 日连续申购 */
@@ -384,7 +381,7 @@ const imaotai = {
     const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r1);
     if (r1.code !== 2000) {
-      this.hasError = true;
+      $.hasError = true;
       return r1.message || r1.error;
     }
     if (r1.data.rewardReceived) return '今日已领取';
@@ -393,7 +390,7 @@ const imaotai = {
     const url = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/receive7DaysContinuouslyApplyingReward';
     const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r2);
-    if (r2.code !== 2000) this.hasError = true;
+    if (r2.code !== 2000) $.hasError = true;
     return r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message;
   },
   /** 领取累计申购奖励 */
@@ -403,7 +400,7 @@ const imaotai = {
     const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r1);
     if (r1.code !== 2000) {
-      this.hasError = true;
+      $.hasError = true;
       return r1.message || r1.error;
     }
 
@@ -415,14 +412,13 @@ const imaotai = {
       const url = `https://h5.moutai519.com.cn/game/xmyApplyingReward/receiveCumulativelyApplyingReward`;
       const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
       if (imaotai.debug) console.log(r1);
-      if (r2.code !== 2000) this.hasError = true;
+      if (r2.code !== 2000) $.hasError = true;
       msg += `[累计申购${day}天]${r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message}`;
     }
 
     return msg || `[累计申购${r1.data.previousDays + 1}天]无可领取奖励`;
   },
   async start(inputData = config) {
-    const msgList = [];
     let userCount = 0;
     try {
       await this.getAppVersion();
@@ -430,8 +426,7 @@ const imaotai = {
       const sessionInfo = await this.getSessionId();
 
       if (!sessionInfo.sessionId) {
-        msgList.push(`获取 sessionId 失败: ${JSON.stringify(sessionInfo)}`);
-        this.hasError = true;
+        $.log(`获取 sessionId 失败: ${JSON.stringify(sessionInfo)}`, 'error');
       } else {
         for (let user of inputData.user) {
           userCount++;
@@ -457,13 +452,12 @@ const imaotai = {
 
             const { userName, userId, mobile } = await this.getUserId();
             if (!userId) {
-              msgList.push(`🙂 第 ${userCount} 个用户 token 失效，请重新登录`);
-              this.hasError = true;
+              $.log(`🙂 第 ${userCount} 个用户 token 失效，请重新登录`, 'error');
               continue;
             }
 
             req.setHeaders({ userId });
-            msgList.push(`😀 第 ${userCount} 个用户【${userName}_${mobile}】开始任务`);
+            $.log(`😀 第 ${userCount} 个用户【${userName}_${mobile}】开始任务`);
 
             if (!user.itemCodes?.length || !user.itemCodes.some(d => sessionInfo.itemList.some(e => e.itemCode == d))) {
               user.itemCodes = sessionInfo.itemList
@@ -481,32 +475,30 @@ const imaotai = {
                 if (shop?.shopId) {
                   const shopInfo = this.mall[shop.shopId];
                   const r = await this.mtAdd(item.itemCode, shop.shopId, sessionInfo.sessionId, userId);
-                  msgList.push(`✅ 选中店铺：【${shopInfo.name}】【${shopInfo.fullAddress}】【投放量：${shop.item!.inventory}】`);
-                  msgList.push(`➡️ [${item.itemCode}_${item.title}]${r}`);
+                  $.log(`✅ 选中店铺：【${shopInfo.name}】【${shopInfo.fullAddress}】【投放量：${shop.item!.inventory}】`);
+                  $.log(`➡️ [${item.itemCode}_${item.title}]${r}`);
                 } else {
-                  msgList.push(`❌ [${item.itemCode}_${item.title}]未获取到可预约的店铺，未能预约`);
-                  this.hasError = true;
+                  $.log(`❌ [${item.itemCode}_${item.title}]未获取到可预约的店铺，未能预约`, 'error');
                 }
               }
             }
 
-            msgList.push(`🔸领取耐力值：${await this.getUserEnergyAward()}`);
-            msgList.push(`🔸领取连续申购：${await this.receive7DaysApplyingReward()}`);
-            msgList.push(`🔸领取累计申购：${await this.cumulativelyApplyingDays()}`);
+            $.log(`🔸领取耐力值：${await this.getUserEnergyAward()}`);
+            $.log(`🔸领取连续申购：${await this.receive7DaysApplyingReward()}`);
+            $.log(`🔸领取累计申购：${await this.cumulativelyApplyingDays()}`);
           } catch (err) {
             console.error(err);
-            msgList.push(`[${userCount}]error: ${(err as Error).message || JSON.stringify(err)}`);
-            this.hasError = true;
+            $.log(`[${userCount}]error: ${(err as Error).message || JSON.stringify(err)}`, 'error');
           }
         }
       }
     } catch (err) {
       console.error(err);
-      msgList.push(`❌ error: ${(err as Error).message || JSON.stringify(err)}`);
+      $.log(`❌ error: ${(err as Error).message || JSON.stringify(err)}`, 'error');
     }
     console.log(`执行完毕。共执行了 ${userCount} 个账号`);
 
-    await sendNotify('I茅台预约', msgList.join('\n'), { notifyType: config.notifyType, hasError: imaotai.hasError });
+    await $.done();
   },
 };
 

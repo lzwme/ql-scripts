@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-20 10:31:21
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-23 15:11:00
+ * @LastEditTime: 2024-02-28 13:26:34
  * @Description:
  */
 import { type AnyObject, Request, generateUuid } from '@lzwme/fe-utils';
@@ -22,7 +22,7 @@ export class Env {
   private options: EnvOptions = {
     sep: ['&', '\n'],
   };
-  public hasError = false;
+  public hasError: boolean | number = 0;
   public req = new Request(undefined, { 'content-type': 'application/json' });
   public storage: ReturnType<typeof getCacheStorage<AnyObject>>;
   constructor(public name: string, options?: EnvOptions) {
