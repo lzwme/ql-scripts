@@ -14,6 +14,7 @@
     "@lzwme/fe-utils": "^1.6.0",
     "axios": "^1.6.7",
     "commander": "^11.1.0",
+    "console-log-colors": "^0.4.0",
     "crypto-js": "^4.2.0",
     "enquirer": "^2.4.1",
     "json5": "^2.2.3",

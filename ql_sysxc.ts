@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-19 13:34:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-23 12:02:06
+ * @LastEditTime: 2024-03-06 14:56:56
  * @Description: 书亦烧仙草小程序签到
 
  cron: 11 10 * * *
@@ -13,6 +13,9 @@ import CryptoJS from 'crypto-js';
 import axios from 'axios';
 import { Env } from './utils';
 
+// process.env.sysxc = '';
+// process.env.LZWME_OCR_API = '';
+// process.env.LZWME_OCR_TOKEN = '';
 const $ = new Env('书亦烧仙草签到');
 $.init(signIn, 'sysxc').then(() => $.done());
 
@@ -53,6 +56,8 @@ async function signIn(auth: string) {
   };
   let url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/getVCode';
   const { data: vCodeRes } = await axios.post(url, { captchaType: 'blockPuzzle', clientUid: '', ts: new Date().getTime() }, { headers });
+  if (!vCodeRes.data) return $.log(`获取验证码失败！${vCodeRes.resultMsg}`, 'error');
+
   const { secretKey, token, jigsawImageBase64: img1, originalImageBase64: img2 } = vCodeRes.data;
   const x = await slider_match(img1, img2);
   if (!x) return $.log('验证码识别失败！', 'error');

@@ -2,10 +2,11 @@
  * @Author: renxia
  * @Date: 2024-02-20 10:31:21
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-28 13:26:34
+ * @LastEditTime: 2024-03-06 16:30:04
  * @Description:
  */
-import { type AnyObject, Request, generateUuid } from '@lzwme/fe-utils';
+import { type AnyObject, Request } from '@lzwme/fe-utils';
+import { strip, redBright } from 'console-log-colors';
 import { getCacheStorage, sendNotify } from './common';
 
 interface EnvOptions {
@@ -39,20 +40,22 @@ export class Env {
         const users = this.parse(envValue, this.options.sep);
         await this.runTask(Task, users);
       } else {
-        this.log(`环境变量 ${envName} 未定义`, 'error');
+        this.log(`环境变量 ${redBright(envName)} 未定义`, 'error');
       }
     }
     return this;
   }
   public async runTask(Task: any, usersConfig: any[]) {
     try {
-      for (const [idx, userConfig] of Object.entries(usersConfig)) {
+      for (let [idx, userConfig] of Object.entries(usersConfig)) {
         this.index = +idx + 1;
-        this.log(`账号${this.index}：`);
+        let desc = '';
+        if (typeof userConfig === 'string') [userConfig, desc = ''] = userConfig.split('##'); // 支持以 ## 隔离描述，可主要用于唯一 uid 标记
+        this.log(`🆔账号${this.index}：${desc || ''}`);
         if (typeof Task.prototype?.start === 'function') {
-          const t = new Task(userConfig, this.index);
+          const t = new Task(userConfig, this.index, desc);
           await t.start();
-        } else await Task(userConfig, this.index);
+        } else await Task(userConfig, this.index, desc);
       }
     } catch (e) {
       const error = e as Error;
@@ -69,12 +72,15 @@ export class Env {
     return arr;
   }
   public log(msg: string, type: 'error' | 'info' | 'warn' | 'log' | 'debug' = 'info') {
-    if (type !== 'debug') this.msgs.push(msg);
+    if (type !== 'debug') this.msgs.push(strip(msg));
     if (type === 'error') this.hasError = true;
     console[type](msg);
   }
   uuid() {
-    return generateUuid();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = (Math.random() * 16) | 0;
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
   }
   wait(delay: number, gap = 0) {
     if (gap > 0) delay += Math.floor(Math.random() * gap);

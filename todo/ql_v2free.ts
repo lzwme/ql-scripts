@@ -3,7 +3,7 @@
  * @Date: 2024-02-22 17:05:00
  * @LastEditors: renxia
  * @LastEditTime: 2024-02-23 11:05:36
- * @Description: v2free机场签到
+ * @Description: v2free机场签到。注册地址： https://w1.v2free.top/auth/register?code=cJLs
 
  cron: 21 10 * * *
  环境变量 V2freeCookie: 抓包获取 header 中的 cookie，多个账户以 & 或 \n 换行分割
@@ -90,5 +90,5 @@ async function signCheckIn(Cookie: string) {
 
   const res = JSON.parse(data as never as string);
   if (res.trafficInfo) $.log(`签到成功！${res.msg}。未使用流量：${res.trafficInfo.unUsedTraffic}`);
-  else $.log(`❌签到失败：${res.msg}`);
+  else $.log(`❌签到失败：${res.msg}`, 'error');
 }

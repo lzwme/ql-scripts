@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-23 14:31:45
+ * @LastEditTime: 2024-03-05 09:42:24
  * @Description:
  */
 
@@ -40,13 +40,13 @@ export function getConfigStorage<T extends object = Record<string, any>>(uuid: s
     filepath = findFile('lzwme_ql_config.json5') || findFile('lzwme_ql_config.json') || 'lzwme_ql_config.json';
   }
 
-  if (!existsSync(filepath)) console.warn(`未发现配置文件。请创建：${color.cyan(filepath)}`);
+  if (!existsSync(filepath) && !filepath.includes('cache.json')) console.warn(`未发现配置文件。请创建：${color.cyan(filepath)}`);
 
   return new LiteStorage<T>({ filepath: resolve(process.cwd(), filepath), uuid });
 }
 
 interface SendNotifyParams extends Record<string, any> {
-  hasError?: boolean;
+  hasError?: boolean | number;
   notifyType?: 0 | 1 | 2;
   isPrint?: boolean;
   exit?: boolean;
