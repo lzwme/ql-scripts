@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-20 10:31:21
  * @LastEditors: renxia
- * @LastEditTime: 2024-03-06 16:30:04
+ * @LastEditTime: 2024-03-25 09:44:32
  * @Description:
  */
 import { type AnyObject, Request } from '@lzwme/fe-utils';
@@ -35,7 +35,7 @@ export class Env {
     await this.storage.ready();
 
     if (Task) {
-      if (!envValue && envName) envValue = process.env[envName];
+      if (!envValue && envName) envName.split('|').some((eName) => (envValue = process.env[eName]));
       if (envValue) {
         const users = this.parse(envValue, this.options.sep);
         await this.runTask(Task, users);
@@ -48,14 +48,18 @@ export class Env {
   public async runTask(Task: any, usersConfig: any[]) {
     try {
       for (let [idx, userConfig] of Object.entries(usersConfig)) {
-        this.index = +idx + 1;
-        let desc = '';
-        if (typeof userConfig === 'string') [userConfig, desc = ''] = userConfig.split('##'); // 支持以 ## 隔离描述，可主要用于唯一 uid 标记
-        this.log(`🆔账号${this.index}：${desc || ''}`);
-        if (typeof Task.prototype?.start === 'function') {
-          const t = new Task(userConfig, this.index, desc);
-          await t.start();
-        } else await Task(userConfig, this.index, desc);
+        try {
+          this.index = +idx + 1;
+          let desc = '';
+          if (typeof userConfig === 'string') [userConfig, desc = ''] = userConfig.split('##'); // 支持以 ## 隔离描述，可主要用于唯一 uid 标记
+          this.log(`🆔账号${this.index}：${desc || ''}`);
+          if (typeof Task.prototype?.start === 'function') {
+            const t = new Task(userConfig, this.index, desc);
+            await t.start();
+          } else await Task(userConfig, this.index, desc);
+        } catch (error) {
+          this.log(`账号 ${this.index} 运行异常：${(error as Error).message}`, 'error');
+        }
       }
     } catch (e) {
       const error = e as Error;
@@ -66,7 +70,7 @@ export class Env {
   public parse(envValue: string, mutiAccountSeps = this.options.sep!) {
     if (!envValue) return [];
 
-    const sep = mutiAccountSeps.find(d => envValue.includes(d)) || mutiAccountSeps[0];
+    const sep = mutiAccountSeps.find((d) => envValue.includes(d)) || mutiAccountSeps[0];
     const arr = envValue.split(sep).filter(Boolean);
     if (arr.length > 1) this.log(`共找到了 ${arr.length} 个账号`);
     return arr;
@@ -77,14 +81,14 @@ export class Env {
     console[type](msg);
   }
   uuid() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = (Math.random() * 16) | 0;
       return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
     });
   }
   wait(delay: number, gap = 0) {
     if (gap > 0) delay += Math.floor(Math.random() * gap);
-    return new Promise(rs => setTimeout(rs, delay));
+    return new Promise((rs) => setTimeout(rs, delay));
   }
   public getMsgs() {
     return this.msgs.join('\n');

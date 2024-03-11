@@ -6,7 +6,7 @@
 
  抓包把 X-access-token 的值(在请求头里)填到环境变量中, 多账号用 & 隔开（可自定义）
 
- 环境变量 XLHG_TOKEN 新联惠购
+ 环境变量 XLHG_TOKEN 偲源惠购
  环境变量 GLYP_TOKEN 贵旅优品
  环境变量 KGLG_TOKEN 空港乐购
  环境变量 HLQG_TOKEN 航旅黔购
@@ -21,13 +21,15 @@
 import { createHmac } from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
 import moment from 'moment';
-import { assign, Request, sleep } from '@lzwme/fe-utils';
-import { getConfigStorage, sendNotify } from './utils';
+import { assign, dateFormat, Request, sleep } from '@lzwme/fe-utils';
+import { getConfigStorage } from './utils';
+import { Env } from './utils';
 
+const $ = new Env('葫芦娃预约');
 const SPLIT = '&'; // 分割符（可自定义）
 const config = {
   token: {
-    新联惠购: (process.env.XLHG_COOKIE || process.env.XLTH_COOKIE || '').split(SPLIT).filter(Boolean),
+    偲源惠购: (process.env.XLHG_COOKIE || process.env.XLTH_COOKIE || '').split(SPLIT).filter(Boolean),
     贵旅优品: [] as string[],
     空港乐购: [] as string[],
     航旅黔购: [] as string[],
@@ -41,7 +43,7 @@ const stor = getConfigStorage<typeof config>('葫芦娃预约');
 const req = new Request('', { 'content-type': 'application/json' });
 const constants = {
   app: {
-    新联惠购: { key: 'XLHG', channelId: '8', appId: 'wxded2e7e6d60ac09d' },
+    偲源惠购: { key: 'XLHG', channelId: '8', appId: 'wxded2e7e6d60ac09d' },
     贵旅优品: { key: 'GLYP', channelId: '7', appId: 'wx61549642d715f361' },
     空港乐购: { key: 'KGLG', channelId: '2', appId: 'wx613ba8ea6a002aa8' },
     航旅黔购: { key: 'HLQG', channelId: '6', appId: 'wx936aa5357931e226' },
@@ -62,13 +64,8 @@ const constants = {
 const cache = {
   ak: '00670fb03584fbf44dd6b136e534f495',
   sk: '0d65f24dbe2bc1ede3c3ceeb96ef71bb',
-  message: [] as string[],
 };
 
-function logPrint(msg: string, toSendCache = true) {
-  console.log(msg);
-  if (toSendCache) cache.message.push(msg);
-}
 function hmacSignature(method: string, pathname: string, ak: string, sk: string, date: string) {
   const text = method.toUpperCase() + '\n' + pathname + '\n\n' + ak + '\n' + date + '\n';
   return createHmac('sha256', sk).update(text).digest('base64');
@@ -90,40 +87,48 @@ function post<T = any>(pathname: string, data: Record<string, unknown>) {
 async function getAkSk(appId: string) {
   const { data } = await req.post(`${constants.akskUrl}/api/getInfo`, { appId });
   if (data.code == '10000') assign(cache, data.data); // data.data.ak、sk
-  else logPrint(`获取 ak/sk 异常：${data?.message || data}`);
+  else $.log(`获取 ak/sk 异常：${data?.message || data}`, 'error');
+}
+async function getWinningCustomers({ activityId = '', activityName = '' }) {
+  const url = '/front-manager/api/customer/promotion/getWinningCustomers';
+  const data = await post(url, { activityId });
+  if (data.code != '10000') return $.log(`查询中签结果失败：` + data.message, 'error');
+  else $.log(`[${activityName}]中签结果：${data.message}`, data.data ? 'error' : 'info');
 }
 async function reservation(appId: string, channelId: string) {
   try {
     const userInfo = await post<{ phone: string; idcard: string; realName: string }>(constants.api.queryById, { appId });
-    if (userInfo.code != '10000') return logPrint(userInfo.message);
+    if (userInfo.code != '10000') return $.log(userInfo.message, 'error');
 
     const activityRes = await post(constants.api.channelActivity, { id: channelId });
     const aData = activityRes.data;
-    if (activityRes.code != '10000') return logPrint(activityRes.message);
-
-    if (aData.endTime && Date.now() - aData.endTime > 10 * 60 * 1000) {
-      logPrint(`----暂无新活动。最近活动为【${aData.name}】----`);
+    if (activityRes.code != '10000') return $.log(activityRes.message, 'error');
+    // console.log(aData)
+    if (aData.endTime && Date.now() - aData.endTime > 1000 * 60 * 1000) {
+      $.log(`----暂无新活动。最近活动为「${dateFormat('MM-dd hh:mm:00', aData.endTime)}」【${aData.name}】----`);
       return '活动已结束';
     }
 
-    logPrint(`当前用户[${userInfo.data.phone}]`);
+    $.log(`当前用户[${userInfo.data.phone}]`);
     if (aData.appointCounts > 1 && aData.drawTime < Date.now()) {
-      logPrint(
-        `[${aData.name}]结果已公布，中签人数[${aData.appointCounts}]，${aData.isAppoint ? '您可能已中签，尽快进小程序确认！' : '您未中签'}`
+      $.log(
+        `[${aData.name}]结果已公布，中签人数[${aData.appointCounts}]，${aData.isAppoint ? '您可能已中签，尽快进小程序确认！' : '您未中签'}`,
+        aData.isAppoint ? 'error' : 'info'
       );
+      await getWinningCustomers({ activityId: aData.id, activityName: aData.name });
       return;
     }
 
-    logPrint(`活动名称[${aData.name}]`);
+    $.log(`活动名称[${aData.name}]`);
     const checkRes = await post(constants.api.checkCustomerInQianggou, { activityId: aData.id, channelId });
-    if (checkRes.code != '10000') return logPrint(checkRes.message);
+    if (checkRes.code != '10000') return $.log(checkRes.message, 'error');
 
     if (checkRes.data == false) {
       const r = await post(constants.api.appoint, { activityId: aData.id, channelId: channelId });
-      logPrint(`预约结果[appoint][${r.message}]`);
-    } else logPrint(`预约结果[已经预约成功，无需重复预约]`);
+      $.log(`预约结果[appoint][${r.message}]`);
+    } else $.log(`预约结果[已经预约成功，无需重复预约]`);
   } catch (error) {
-    logPrint(`运行异常[${(error as Error).message}]`);
+    $.log(`运行异常[${(error as Error).message}]`, 'error');
   }
 }
 async function start() {
@@ -138,15 +143,25 @@ async function start() {
     }
 
     const key = Object.entries(constants.app).find((d) => d[0] === appName)?.[1].key;
-    if (key) tokens = (process.env[`${key}_COOKIE`] || process.env[`${key}_TOKEN`] || '').split(SPLIT).filter(Boolean);
-    if (!tokens.length) continue;
+    if (key) {
+      const _tokens = (process.env[`${key}_COOKIE`] || process.env[`${key}_TOKEN`] || '').split(SPLIT).filter(Boolean);
+      if (_tokens.length > 0) tokens = _tokens;
+    }
+    if (!tokens.length) {
+      $.log(`${appName}: 请配置环境变量 ${key}_TOKEN`);
+      continue;
+    }
 
     const constant = constants.app[appName as keyof typeof constants.app];
-    logPrint(`${appName}预约开始`);
+    if (!constant) {
+      $.log(`未知的配置：${appName}`);
+      continue;
+    }
+    $.log(`${appName}预约开始`);
 
     await getAkSk(constant.appId);
     for (const [idx, token] of tokens.entries()) {
-      logPrint('----第' + (idx + 1) + '个号----');
+      $.log('----第' + (idx + 1) + '个号----');
       req.setHeaders({
         'X-access-token': token.split('|')[0].trim(),
         'user-agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x6309080f)XWEB/8461`,
@@ -156,10 +171,10 @@ async function start() {
 
       await sleep(1000);
     }
-    logPrint(`${appName}预约结束\n`);
+    $.log(`${appName}预约结束\n`);
   }
 
-  await sendNotify('葫芦娃预约', cache.message.join('\n'), {}, '\n\n本通知 By：lzwme/ql-scripts');
+  await $.done();
 }
 
 start();

@@ -8,15 +8,17 @@
  自行抓包并在 lzwme_ql_config.json5 文件中配置 config 信息
 
  支持环境变量配置方式（多个账号以 & 或换行分割）：
- export QL_IMAOTAI=token=xxx;tokenWap=xxx;city=北京市;province=北京市&token=xxx...
+ export QL_IMAOTAI=mobile=138xxxx;token=xxx;tokenWap=xxx;city=北京市;province=北京市&mobile=138xxxx;token=xxx...
  */
 
-import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color } from '@lzwme/fe-utils';
+import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color, cookieParse } from '@lzwme/fe-utils';
 import { program } from 'commander';
 import { IncomingHttpHeaders } from 'node:http';
 import { homedir, hostname } from 'node:os';
 import { resolve } from 'node:path';
 import { getGeoByGD, getConfigStorage, Env } from './utils';
+
+// process.env.QL_IMAOTAI=``
 
 const $ = new Env('I茅台预约');
 const itemMap: Record<string, string> = {
@@ -29,7 +31,7 @@ const itemMap: Record<string, string> = {
 };
 const config = {
   AMAP_KEY: '', // 高德地图 key，用于命令行方式登录获取经纬度，可以不用
-  appVersion: '1.5.9', // APP 版本，可以不写，会尝试自动获取
+  appVersion: '1.6.1', // APP 版本，可以不写，会尝试自动获取
   // 预约店铺策略。max: 最大投放量；maxRate: 近30日中签率最高；nearby: 距离最近店铺（默认）; keyword: shopKeywords 列表优先
   type: 'nearby' as 'max' | 'maxRate' | 'nearby' | 'keyword',
   shopKeywords: [], // 店铺白名单：用于指定高优先级的店铺，type=keyword 时，优先查找符合列表关键字的店铺申购
@@ -370,8 +372,12 @@ const imaotai = {
   async getUserEnergyAward() {
     const headers = this.getHeaders({ Referer: 'https://h5.moutai519.com.cn/gux/game/main?appConfig=2_1_2' }, 'h5');
     const r = await req.post('https://h5.moutai519.com.cn/game/isolationPage/getUserEnergyAward', {}, headers);
-    if (r.data.code !== 2000) $.hasError = true;
-    return r.data.message || '领取奖励成功';
+    if (r.data.code !== 2000) {
+      console.error('领取耐力值失败：', r.data);
+      $.log(`⚠︎ 领取耐力值：${r.data.message || '领取奖励失败'}`); // , 'error'
+    } else {
+      $.log(`🔸领取耐力值：${r.data.message || '领取奖励成功'}`);
+    }
   },
   /** 领取 7 日连续申购 */
   async receive7DaysApplyingReward() {
@@ -381,17 +387,20 @@ const imaotai = {
     const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r1);
     if (r1.code !== 2000) {
-      $.hasError = true;
-      return r1.message || r1.error;
+      console.log(r1);
+      return $.log(`❌ 连续申购：${r1.message || r1.error}`, 'error');
     }
-    if (r1.data.rewardReceived) return '今日已领取';
-    if (r1.data.previousProgress < 6) return `[${r1.data.previousProgress}]连续申购不满7日，无法领取`;
+
+    if (r1.data.rewardReceived) return $.log('连续申购：今日已领取');
+    if (r1.data.previousProgress < 6) return $.log(`连续申购：[${r1.data.previousProgress}]连续申购不满7日，无法领取`);
 
     const url = 'https://h5.moutai519.com.cn/game/xmyApplyingReward/receive7DaysContinuouslyApplyingReward';
     const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r2);
-    if (r2.code !== 2000) $.hasError = true;
-    return r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message;
+    if (r2.code !== 2000) {
+      console.error(r2);
+      $.log(`❌ 连续申购：${r2.message}`, 'error');
+    } else $.log(`🔸连续申购：领取小茅运 +${r2.data?.rewardAmount}`);
   },
   /** 领取累计申购奖励 */
   async cumulativelyApplyingDays() {
@@ -400,11 +409,10 @@ const imaotai = {
     const { data: r1 } = await req.post<R1>(qurl, {}, this.getHeaders({}, 'h5'));
     if (imaotai.debug) console.log(r1);
     if (r1.code !== 2000) {
-      $.hasError = true;
-      return r1.message || r1.error;
+      console.error(r1);
+      return $.log(`❌ 累计申购：${r1.message || r1.error}`, 'error');
     }
 
-    let msg = '';
     for (const day of [7, 14, 21, 28] as const) {
       if (r1.data.rewardReceived[day]) continue;
       if (r1.data.previousDays + 1 < day) break;
@@ -412,11 +420,14 @@ const imaotai = {
       const url = `https://h5.moutai519.com.cn/game/xmyApplyingReward/receiveCumulativelyApplyingReward`;
       const { data: r2 } = await req.post<Res>(url, {}, this.getHeaders({}, 'h5'));
       if (imaotai.debug) console.log(r1);
-      if (r2.code !== 2000) $.hasError = true;
-      msg += `[累计申购${day}天]${r2.code == 2000 ? `领取小茅运 +${r2.data?.rewardAmount}` : r2.message}`;
+      if (r2.code !== 2000) {
+        $.hasError = true;
+        console.error(r2);
+        $.log(`❌ 累计申购${day}天：${r2.message}`, 'error');
+      } else {
+        $.log(`🔸累计申购${day}天：领取小茅运 +${r2.data?.rewardAmount}`);
+      }
     }
-
-    return msg || `[累计申购${r1.data.previousDays + 1}天]无可领取奖励`;
   },
   async start(inputData = config) {
     let userCount = 0;
@@ -426,7 +437,7 @@ const imaotai = {
       const sessionInfo = await this.getSessionId();
 
       if (!sessionInfo.sessionId) {
-        $.log(`获取 sessionId 失败: ${JSON.stringify(sessionInfo)}`, 'error');
+        $.log(`❌ 获取 sessionId 失败: ${JSON.stringify(sessionInfo)}`, 'error');
       } else {
         for (let user of inputData.user) {
           userCount++;
@@ -452,7 +463,7 @@ const imaotai = {
 
             const { userName, userId, mobile } = await this.getUserId();
             if (!userId) {
-              $.log(`🙂 第 ${userCount} 个用户 token 失效，请重新登录`, 'error');
+              $.log(`❌ 第 ${userCount} 个用户 token 失效，请重新登录`, 'error');
               continue;
             }
 
@@ -483,9 +494,9 @@ const imaotai = {
               }
             }
 
-            $.log(`🔸领取耐力值：${await this.getUserEnergyAward()}`);
-            $.log(`🔸领取连续申购：${await this.receive7DaysApplyingReward()}`);
-            $.log(`🔸领取累计申购：${await this.cumulativelyApplyingDays()}`);
+            await this.getUserEnergyAward();
+            await this.receive7DaysApplyingReward();
+            await this.cumulativelyApplyingDays();
           } catch (err) {
             console.error(err);
             $.log(`[${userCount}]error: ${(err as Error).message || JSON.stringify(err)}`, 'error');
@@ -715,15 +726,10 @@ program
     if (process.env.QL_IMAOTAI) {
       const list = process.env.QL_IMAOTAI.split(process.env.QL_IMAOTAI.includes('&') ? '&' : '\n');
       list.forEach(line => {
-        const item: Partial<typeof config['user'][0]> = {};
-        line.split(';').map(item => item.split('=').map(d=>d.trim())).forEach(([key, value]) => {
-          if (!key || !value) return;
-          // @ts-ignore
-          item[key] = value;
-        });
+        const item: Partial<(typeof config)['user'][0]> = cookieParse(line);
 
-        if (item.deviceId && item.token) {
-          const o = config.user.find(d => d.deviceId === item.deviceId);
+        if (item.mobile && item.token) {
+          const o = config.user.find(d => d.mobile === item.mobile);
           if (o) Object.assign(o, item);
           else if (item.city && item.province) {
             // todo: 支持环境变量新增配置，支持配置城市和省份等信息

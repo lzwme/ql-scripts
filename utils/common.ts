@@ -40,7 +40,7 @@ export function getConfigStorage<T extends object = Record<string, any>>(uuid: s
     filepath = findFile('lzwme_ql_config.json5') || findFile('lzwme_ql_config.json') || 'lzwme_ql_config.json';
   }
 
-  if (!existsSync(filepath) && !filepath.includes('cache.json')) console.warn(`未发现配置文件。请创建：${color.cyan(filepath)}`);
+  // if (!existsSync(filepath) && !filepath.includes('cache.json')) console.warn(`未发现配置文件。请创建：${color.cyan(filepath)}`);
 
   return new LiteStorage<T>({ filepath: resolve(process.cwd(), filepath), uuid });
 }

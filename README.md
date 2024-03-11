@@ -33,18 +33,63 @@ pnpm add @lzwme/fe-utils commander enquirer moment json5 crypto-js axios
 
 各脚本的具体配置，可参考具体脚本内注释说明进行设置。
 
-通用配置：
-
-配置文件及格式可参考文件：[lzwme_ql_config.json5](./sample/lzwme_ql_config.json5)
-新增环境变量：`LZWME_QL_CONFIG_FILE`，值为 `/ql/data/scripts/lzwme_ql_config.json5`。后续各脚本配置都会从此路径文件读取。
-
-环境变量：
+### 通用环境变量
 
 - `process.env.LZWME_QL_CONFIG_FILE` 通用配置文件的路径。默认从当前目录及服务目录查找  `lzwme_ql_config.json5` 文件。
 - `process.env.LZWME_QL_NOTIFY_TYPE` 配置通知策略：
     - 0 - 关闭通知
     - 1 - 仅发送异常时通知。`默认值`
     - 2 - 全通知
+
+### 脚本变量快速自动获取与更新至青龙面板的方法参考
+
+一些脚本的认证参数有效期较短，频繁的手动更新比较麻烦。下面介绍一种基于 `whistle` 代理工具及插件 `@lzwme/whistle.x-scripts` 编写规则，实现自动收集相关环境变量参数并更新至青龙面板的方法。
+
+环境安装与配置（编辑青龙面板的 `配置文件 - extra.sh` 文件，追加如下内容）：
+
+```bash
+# 全局安装 whistle 代理工具。注意，需本机已安装 node.js
+npm i -g whistle @lzwme/whistle.x-scripts
+
+# 创建工作目录（青龙面板示例）
+mkdir -p /ql/data/scripts/whistle
+cd /ql/data/scripts/whistle
+
+if [ ! -e w2.x-scripts.config.js ]; then
+  cp /usr/local/lib/node_modules/@lzwme/whistle.x-scripts/w2.x-scripts.config.sample.js w2.x-scripts.config.js
+fi
+
+# 拉取公开供参考学习的常用脚本规则
+if [ ! -e x-scripts-rules ]; then
+    git clone https://mirror.ghproxy.com/github.com/lzwme/x-scripts-rules.git
+fi
+
+# 用于存放自定义的脚本规则
+# 脚本规则编写方法参考：https://github.com/lzwme/whistle.x-scripts.git
+mkdir local-x-scripts-rules
+
+# 启动代理插件
+w2 start
+```
+
+接着 PC 或手机设置代理地址为 `w2 start` 启动打印的地址。代理设置方法参考：https://github.com/lzwme/whistle.x-scripts.git
+
+最后， 从 PC 或手机访问相关脚本对应的 APP 或小程序。在正常使用过程中，当代理插件脚本匹配到目标参数数据，即会自动更新至青龙面板的环境变量中。
+
+此外，还可以在“脚本管理”中新建一个脚本（如 `rules-update.sh`），并新建一个定时任务每天执行一次，用于定时拉取更新公开的脚本规则。示例：
+
+```bash
+#! /usr/bin/env bash
+cd /ql/data/scripts/whistle/x-scripts-rules
+git pull -r -n -v
+cd ..
+w2 restart
+```
+
+扩展参考：
+
+- https://github.com/lzwme/whistle.x-scripts.git
+- https://github.com/lzwme/x-scripts-rules.git
 
 ## 其他相关
 
