@@ -2,12 +2,12 @@
  * @Author: renxia
  * @Date: 2024-02-22 17:05:00
  * @LastEditors: renxia
- * @LastEditTime: 2024-03-12 10:43:21
+ * @LastEditTime: 2024-04-01 09:33:54
  * @Description: ikuuu机场签到。注册： https://ikuuu.pw/auth/register?code=75PU
 
  cron: 20 9 * * *
- 环节变量： SSPANEL_HOST，可选。可以指定任何基于 SSPANEL 搭建的机场用于签到
  环境变量： IKUUU，必填。格式： 邮箱#密码，也可以是 cookie（有效期一个星期）。多个账户以 & 或 \n 换行分割
+ 环节变量： SSPANEL_HOST，可选。可以指定任何基于 SSPANEL 搭建的机场用于签到
   示例：process.env.IKUUU=邮箱1#密码1&邮箱2#密码2
   或：process.env.IKUUU=cookie1&cookie2
  */
@@ -35,12 +35,25 @@ export async function signCheckIn(cfg: string) {
   let cookie = passwd ? '' : email;
   // @ts-ignore
   Object.entries(url).forEach(([key, value]) => url[key] = value.replaceAll('//', '/'));
+  const cache = $.storage.getItem(`ikuuu_cookie`) || {};
+  const cacheKey = `${HOST}_${email}`;
+
+  if (email && passwd) {
+    cookie = cache[cacheKey];
+    if (cookie) {
+      $.log(`使用缓存 cookie: ${cookie}`);
+      $.req.setCookie(cookie);
+      if (await checkin(url.login)) return;
+    }
+  }
 
   if (!cookie) {
     const { data, headers } = await $.req.post(url.login, { email, passwd });
     if (data.ret === 1) {
         cookie = headers['set-cookie']!.map(d => d.split(';')[0]).join(';');
         $.log(data.msg || `登录成功！`);
+        cache[cacheKey] = cookie;
+        $.storage.setItem(`ikuuu_cookie`, cache);
     } else {
       $.log(data.msg || `登录失败！`, 'error');
       return;
@@ -48,13 +61,18 @@ export async function signCheckIn(cfg: string) {
   }
 
   $.req.setCookie(cookie);
+  return checkin(url.login);
+}
 
-  const { data } = await $.req.post(url.checkin, {});
+async function checkin(url: string) {
+  const { data } = await $.req.post(url, {});
   if (data.ret === 1 || String(data.msg).includes('签到过')) {
     $.log(`签到成功！${data.msg}`);
+    return true;
   } else {
     $.log(`❌签到失败：${data.msg}`, 'error');
   }
+  return false;
 }
 
 // process.env.IKUUU = '';

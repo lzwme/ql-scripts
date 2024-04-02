@@ -23,6 +23,6 @@
   "devDependencies": {
     "@iarna/toml": "^2.2.5",
     "@types/crypto-js": "^4.2.2",
-    "@types/node": "^20.11.28"
+    "@types/node": "^20.12.2"
   }
 }

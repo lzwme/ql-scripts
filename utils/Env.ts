@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-20 10:31:21
  * @LastEditors: renxia
- * @LastEditTime: 2024-03-25 09:44:32
+ * @LastEditTime: 2024-04-03 10:38:57
  * @Description:
  */
 import { type AnyObject, Request } from '@lzwme/fe-utils';
@@ -63,7 +63,7 @@ export class Env {
       }
     } catch (e) {
       const error = e as Error;
-      this.log(`运行异常：${error.message}`, 'error');
+      this.log(`❌运行异常：${error.message}`, 'error');
     }
     this.done();
   }
@@ -76,8 +76,11 @@ export class Env {
     return arr;
   }
   public log(msg: string, type: 'error' | 'info' | 'warn' | 'log' | 'debug' = 'info') {
+    if (type === 'error') {
+      this.hasError = true;
+      if (!msg.startsWith('❌') && !/^[\ud800-\udbff][\udc00-\udfff]/.test(msg)) msg = `❌ ${msg}`;
+    }
     if (type !== 'debug') this.msgs.push(strip(msg));
-    if (type === 'error') this.hasError = true;
     console[type](msg);
   }
   uuid() {
@@ -86,8 +89,9 @@ export class Env {
       return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
     });
   }
-  wait(delay: number, gap = 0) {
+  wait(delay: number, gap = 0, showTip = true) {
     if (gap > 0) delay += Math.floor(Math.random() * gap);
+    if (showTip) this.log(`等待 ${delay}ms 后继续...`, 'debug');
     return new Promise((rs) => setTimeout(rs, delay));
   }
   public getMsgs() {
@@ -100,7 +104,7 @@ export class Env {
     if (this.options.notifyFlag !== false && this.msgs.length) {
       await sendNotify(this.name, this.getMsgs(), { hasError: this.hasError, isPrint: false, exit: false });
     }
-    this.log(`运行结束，共运行了${Math.ceil((Date.now() - this.startTime) / 1000)}秒`);
+    this.log(`运行结束，共运行了 ${Math.ceil((Date.now() - this.startTime) / 1000)} 秒`);
     process.exit(this.hasError ? 1 : 0);
   }
 }
