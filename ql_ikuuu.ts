@@ -44,6 +44,7 @@ export async function signCheckIn(cfg: string) {
       $.log(`使用缓存 cookie: ${cookie}`);
       $.req.setCookie(cookie);
       if (await checkin(url.login)) return;
+      cookie = '';
     }
   }
 
