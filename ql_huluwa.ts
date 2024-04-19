@@ -82,7 +82,7 @@ function formatHeaders(method: 'get' | 'post', pathname: string, paramsStr: stri
 }
 function post<T = any>(pathname: string, data: Record<string, unknown>) {
   const headers = formatHeaders('post', pathname, JSON.stringify(data));
-  return req.post<{ code: string; message: string; data: T }>(constants.apiUrl + pathname, data, headers).then((d) => d.data);
+  return req.post<{ code: string; message: string; data: T }>(constants.apiUrl + pathname, data, headers).then(d => d.data);
 }
 async function getAkSk(appId: string) {
   const { data } = await req.post(`${constants.akskUrl}/api/getInfo`, { appId });
@@ -136,42 +136,46 @@ async function start() {
   assign(config, stor.get());
 
   for (let [appName, tokens] of Object.entries(config.token)) {
-    if (/^[a-zA-Z]$/.test(appName)) {
-      const item = Object.entries(constants.app).find((d) => d[1].key === appName);
-      if (!item) continue;
-      appName = item[0];
-    }
+    try {
+      if (/^[a-zA-Z]$/.test(appName)) {
+        const item = Object.entries(constants.app).find(d => d[1].key === appName);
+        if (!item) continue;
+        appName = item[0];
+      }
 
-    const key = Object.entries(constants.app).find((d) => d[0] === appName)?.[1].key;
-    if (key) {
-      const _tokens = (process.env[`${key}_COOKIE`] || process.env[`${key}_TOKEN`] || '').split(SPLIT).filter(Boolean);
-      if (_tokens.length > 0) tokens = _tokens;
-    }
-    if (!tokens.length) {
-      $.log(`${appName}: 请配置环境变量 ${key}_TOKEN`);
-      continue;
-    }
+      const key = Object.entries(constants.app).find(d => d[0] === appName)?.[1].key;
+      if (key) {
+        const _tokens = (process.env[`${key}_COOKIE`] || process.env[`${key}_TOKEN`] || '').split(SPLIT).filter(Boolean);
+        if (_tokens.length > 0) tokens = _tokens;
+      }
+      if (!tokens.length) {
+        $.log(`${appName}: 请配置环境变量 ${key}_TOKEN`);
+        continue;
+      }
 
-    const constant = constants.app[appName as keyof typeof constants.app];
-    if (!constant) {
-      $.log(`未知的配置：${appName}`);
-      continue;
-    }
-    $.log(`${appName}预约开始`);
+      const constant = constants.app[appName as keyof typeof constants.app];
+      if (!constant) {
+        $.log(`未知的配置：${appName}`);
+        continue;
+      }
+      $.log(`${appName}预约开始`);
 
-    await getAkSk(constant.appId);
-    for (const [idx, token] of tokens.entries()) {
-      $.log('----第' + (idx + 1) + '个号----');
-      req.setHeaders({
-        'X-access-token': token.split('|')[0].trim(),
-        'user-agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x6309080f)XWEB/8461`,
-      });
-      const msg = await reservation(constant.appId, constant.channelId);
-      if (msg === '活动已结束') break;
+      await getAkSk(constant.appId);
+      for (const [idx, token] of tokens.entries()) {
+        $.log('----第' + (idx + 1) + '个号----');
+        req.setHeaders({
+          'X-access-token': token.split(token.includes('|') ? '|' : '##')[0].trim(),
+          'user-agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x6309080f)XWEB/8461`,
+        });
+        const msg = await reservation(constant.appId, constant.channelId);
+        if (msg === '活动已结束') break;
 
-      await sleep(1000);
+        await sleep(1000);
+      }
+      $.log(`${appName}预约结束\n`);
+    } catch (e) {
+      $.log(`[${appName}]运行异常[${(e as Error).message}]`, 'error');
     }
-    $.log(`${appName}预约结束\n`);
   }
 
   await $.done();

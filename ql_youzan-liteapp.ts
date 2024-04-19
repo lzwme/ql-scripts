@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-04-01 09:34:40
  * @LastEditors: renxia
- * @LastEditTime: 2024-04-03 10:39:23
+ * @LastEditTime: 2024-04-08 11:59:08
  * @Description: 有赞小程序签到
  * @see https://github.com/dreamtonight/js/blob/main/youzan.js
  *
@@ -56,10 +56,14 @@ const pd_map = {
   '1123': '有间全球购', // 积分+现金购物。不是很划算
 };
 // 黑名单，已不再支持签到
-const pd_black = new Set<number>([
+const pd_black = new Set<number | string>([
   1985111, // 'INTOYOU心慕与你', // 已无签到
   3520910, // 'a chock官方', // 打不开
   1579, // '等蜂来天然蜂蜜旗舰店', // 积分换满减优惠券。不划算
+  '央广甄选购物',
+  '云南白药生活',
+  '奈雪的茶商城',
+  '东鹏特饮官方微店', // 可签到但无礼物兑换
 ]);
 
 type Res<T = any> = {
@@ -80,11 +84,12 @@ class Task {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x6309092b) XWEB/9079',
     });
   }
+  isInBlackList() {
+    return [...pd_black].some(d => d === this.checkinId || String(this.desc).includes(String(d)));
+  }
   async start() {
     try {
-      if (pd_black.has(+this.checkinId)) return $.log(`跳过黑名单店铺：[${this.checkinId}]${this.desc}`);
-
-      $.log(`开始执行签到任务：[${pd_map[this.checkinId as keyof typeof pd_map] || this.checkinId}]${this.desc}`);
+      $.log(`开始执行签到任务：[${pd_map[this.checkinId as keyof typeof pd_map] || this.checkinId}]${this.desc}`, 'D');
       if (await this.signin()) await this.getCustomerPoints();
       await $.wait(2000, 1000);
     } catch (error) {
@@ -96,11 +101,12 @@ class Task {
     const { data: result } = await $.req.get<Res<{ list: any[] }>>(url, {}, {}, { rejectUnauthorized: false });
     // console.log(result);
     if (result?.code == 0) {
-      $.log(`签到成功！获得${result?.data?.list[0]?.infos?.title}`);
+      $.log(`签到成功！获得${result?.data?.list[0]?.infos?.title}`, 'D');
     } else {
-      if (result?.msg.includes('无法参与')) $.log(`已签到过了：${result.msg}`);
+      if (result?.msg.includes('无法参与')) $.log(`已签到过了：${result.msg}`, 'D');
       else {
-        $.log(`签到失败！${result?.msg || JSON.stringify(result)}`, 'error');
+        // 仅在白名单内的执行通知
+        if (!this.isInBlackList()) $.log(`签到失败！${result?.msg || JSON.stringify(result)}`, 'error');
         return false;
       }
     }
@@ -115,9 +121,17 @@ class Task {
       { rejectUnauthorized: false }
     );
     // console.log(result);
-    if (result.code == 0) $.log(`当前积分: ${result.data.currentAmount}`);
-    else $.log(`获取积分失败！${result.msg}`);
+    if (result.code == 0) $.log(`当前积分: ${result.data.currentAmount}`, 'D');
+    else $.log(`查询积分失败！${result.msg}`);
   }
+}
+
+// 读取自定义的黑名单
+if (process.env.youzan_le_id_blacklist) {
+  process.env.youzan_le_id_blacklist.split(',').forEach(d => {
+    const [id, _desc] = d.split(':');
+    if (+id && !pd_black.has(+id)) pd_black.add(+id);
+  });
 }
 
 // process.env.youzan_le_data = '';

@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-20 10:31:21
  * @LastEditors: renxia
- * @LastEditTime: 2024-04-03 10:38:57
+ * @LastEditTime: 2024-04-08 11:18:27
  * @Description:
  */
 import { type AnyObject, Request } from '@lzwme/fe-utils';
@@ -75,7 +75,8 @@ export class Env {
     if (arr.length > 1) this.log(`共找到了 ${arr.length} 个账号`);
     return arr;
   }
-  public log(msg: string, type: 'error' | 'info' | 'warn' | 'log' | 'debug' = 'info') {
+  public log(msg: string, type: 'error' | 'info' | 'warn' | 'log' | 'debug' | 'D' = 'info') {
+    if (type === 'D') type = 'debug';
     if (type === 'error') {
       this.hasError = true;
       if (!msg.startsWith('❌') && !/^[\ud800-\udbff][\udc00-\udfff]/.test(msg)) msg = `❌ ${msg}`;
