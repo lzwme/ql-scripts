@@ -68,7 +68,8 @@ async function start() {
 
         if (enabledList.length > 1) {
           const sorted = enabledList.sort((a, b) => {
-            return a.last_execution_time - b.last_execution_time;
+            if (a.command.includes('lzwme')) return -1;
+            return b.last_execution_time - a.last_execution_time;
           });
 
           msg.push(sorted.map((d, i) => `${i ? '【🚫禁用】' : '【✅保留】'}[${d.name}] ${d.command.replace('task ', '')}`).join('\n'), '\n');

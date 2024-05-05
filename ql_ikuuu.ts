@@ -20,10 +20,11 @@ async function getIkuuuHost() {
   const defaultHost = 'https://ikuuu.pw';
   try {
     const {data:html} = await $.req.get<string>('https://ikuuu.club', {}, { 'content-type': 'text/html' });
-    return /<p><a href="(http[^"]+)"/g.exec(html)?.[1] || defaultHost;
-  } catch {
-    return defaultHost;
+    return /<p><a href="(https:\/\/[^"]+)\/?"/g.exec(html)?.[1] || defaultHost;
+  } catch (e) {
+    console.error((e as Error).message);
   }
+  return defaultHost;
 }
 
 export async function signCheckIn(cfg: string) {

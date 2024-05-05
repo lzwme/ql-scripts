@@ -37,15 +37,15 @@ async function updateRepo(repoName: string) {
 }
 
 async function start() {
-  await execPromisfy('w2 stop', true, { cwd: baseDir });
-
+  const r = await execPromisfy('w2 stop', true, { cwd: baseDir });
+  if (r.stderr) await execPromisfy('npm i -g whistle', true, { cwd: baseDir });
   for (const repoName of repoList) await updateRepo(repoName);
 
-  await execPromisfy('w2 restart', true, { cwd: baseDir });
+  await execPromisfy('w2 start', true, { cwd: baseDir });
   process.exit();
 }
 
-start().catch(e => {
+start().catch((e) => {
   console.error(e);
   process.exit();
 });
