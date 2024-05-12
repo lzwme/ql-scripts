@@ -2,12 +2,14 @@
  * @Author: renxia
  * @Date: 2024-02-19 13:34:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-03-06 14:56:56
+ * @LastEditTime: 2024-05-09 09:01:39
  * @Description: 书亦烧仙草小程序签到
 
  cron: 11 10 * * *
  const $ = new Env("书亦烧仙草签到");
- 环境变量 sysxc，抓包获取 header 中的 auth，多个账户以 & 或 \n 换行分割
+ 环境变量：
+  - sysxc，抓包获取 header 中的 auth，多个账户以 & 或 \n 换行分割
+  - LZWME_OCR_API 自建 OCR 访问地址。若为空则使用 `@u4/opencv4nodejs` 模块。可基于该仓库搭建： https://github.com/lzwme/captcha-cv-ocr
  */
 import CryptoJS from 'crypto-js';
 import axios from 'axios';
@@ -19,12 +21,15 @@ import { Env } from './utils';
 const $ = new Env('书亦烧仙草签到');
 $.init(signIn, 'sysxc').then(() => $.done());
 
-async function slider_match(img1: string, img2: string, type = 'api', ocrApi = process.env.LZWME_OCR_API) {
+async function slider_match(img1: string, img2: string, type = 'api', ocrApi = process.env.LZWME_OCR_API, token = process.env.LZWME_OCR_TOKEN) {
+  if (!ocrApi && token) ocrApi = 'https://captcha_cv_ocr.lzw.me/ocr';
+
   if (ocrApi && type === 'api') {
+    const body = { mode: 'slide_match', base64: img1, originalBase64: img2 };
     const b = await fetch(ocrApi, {
       method: 'post',
-      headers: { 'Content-Type': 'application/json', origin: '*', token: process.env.LZWME_OCR_TOKEN || '' },
-      body: JSON.stringify({ mode: 'slide_match', base64: img1, originalBase64: img2 }),
+      headers: { 'Content-Type': 'application/json', origin: '*', token: token || '' },
+      body: JSON.stringify(body),
     }).then((d) => d.json());
     if (!b.data?.maxLoc.x) console.log('[ocr] decode by lzw:', b);
     return b.data?.maxLoc.x;
@@ -70,7 +75,9 @@ async function signIn(auth: string) {
   const captchaVerification = AES_Encrypt(token + '---' + JSON.stringify({ x, y: 5 }), secretKey);
   url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/signIn/insertSignInV3';
   const { data: signInRes } = await axios.post(url, `{"captchaVerification":"${captchaVerification}"}`, { headers });
-  signInRes.resultMsg == 'success' ? $.log('签到成功') : $.log(signInRes.resultMsg, 'error');
+  if (signInRes.resultMsg == 'success') $.log('签到成功');
+  else if (String(signInRes.resultMsg).includes('签到')) $.log(signInRes.resultMsg);
+  else $.log(signInRes.resultMsg, 'error');
 
   url = 'https://scrm-prod.shuyi.org.cn/saas-gateway/api/agg-trade/v1/member/points/list?pageNum=1&pageSize=10&type=0&isQueryWillExpire=0';
   const { data: listRes } = await axios.get(url, { headers });

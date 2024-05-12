@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-22 17:05:00
  * @LastEditors: renxia
- * @LastEditTime: 2024-04-19 11:44:33
+ * @LastEditTime: 2024-05-08 11:30:53
  * @Description: ikuuu机场签到。注册： https://ikuuu.pw/auth/register?code=75PU
 
  cron: 20 9 * * *
@@ -34,8 +34,6 @@ export async function signCheckIn(cfg: string) {
     checkin: `${HOST}/user/checkin`,
   };
   let cookie = passwd ? '' : email;
-  // @ts-ignore
-  Object.entries(url).forEach(([key, value]) => url[key] = value.replaceAll('//', '/'));
   const cache = $.storage.getItem(`ikuuu_cookie`) || {};
   const cacheKey = `${HOST}_${email}`;
 

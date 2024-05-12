@@ -14,6 +14,7 @@ import { execPromisfy, rmrf } from '@lzwme/fe-utils';
 
 console.log(process.cwd());
 
+const githubProxyUrl = process.env.GH_PROXY_URL || '';
 const baseDir = process.env.QL_WHISTLE_BASEDIR || '/ql/data/scripts/whistle/';
 
 const repoList = ['whistle.x-scripts', 'x-scripts-rules'];
@@ -28,11 +29,11 @@ async function updateRepo(repoName: string) {
       return updateRepo(repoName);
     }
   } else {
-    await execPromisfy(`git clone https://mirror.ghproxy.com/github.com/lzwme/${repoName}.git`, true, { cwd: dirname(dir) });
+    await execPromisfy(`git clone ${githubProxyUrl}https://github.com/lzwme/${repoName}.git`, true, { cwd: dirname(dir) });
   }
 
   if (repoName === 'whistle.x-scripts') {
-    await execPromisfy('pnpm install && pnpm build', true, { cwd: dir });
+    await execPromisfy('pnpm install && pnpm build && npm link .', true, { cwd: dir });
   }
 }
 
