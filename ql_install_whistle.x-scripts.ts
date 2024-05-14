@@ -12,9 +12,7 @@ import fs from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { execPromisfy, rmrf } from '@lzwme/fe-utils';
 
-console.log(process.cwd());
-
-const githubProxyUrl = process.env.GH_PROXY_URL || '';
+const githubProxyUrl = process.env.GH_PROXY_URL ?? '';
 const baseDir = process.env.QL_WHISTLE_BASEDIR || '/ql/data/scripts/whistle/';
 
 const repoList = ['whistle.x-scripts', 'x-scripts-rules'];
@@ -22,13 +20,10 @@ const repoList = ['whistle.x-scripts', 'x-scripts-rules'];
 async function updateRepo(repoName: string) {
   const dir = resolve(baseDir, repoName);
 
-  if (fs.existsSync(dir)) {
-    const r = await execPromisfy(`git fetch --all && git reset --hard remotes/origin/main`, true, { cwd: dir });
-    if (r.stderr) {
-      rmrf(dir);
-      return updateRepo(repoName);
-    }
+  if (fs.existsSync(resolve(dir, '.git/config'))) {
+    await execPromisfy(`git fetch --all && git reset --hard remotes/origin/main`, true, { cwd: dir });
   } else {
+    rmrf(dir);
     await execPromisfy(`git clone ${githubProxyUrl}https://github.com/lzwme/${repoName}.git`, true, { cwd: dirname(dir) });
   }
 
@@ -38,15 +33,16 @@ async function updateRepo(repoName: string) {
 }
 
 async function start() {
+  process.chdir(baseDir);
+  console.log(process.cwd());
+
   const r = await execPromisfy('w2 stop', true, { cwd: baseDir });
   if (r.stderr) await execPromisfy('npm i -g whistle', true, { cwd: baseDir });
   for (const repoName of repoList) await updateRepo(repoName);
 
   await execPromisfy('w2 start', true, { cwd: baseDir });
-  process.exit();
 }
 
-start().catch((e) => {
-  console.error(e);
-  process.exit();
-});
+start()
+  .catch((e) => console.error(e))
+  .finally(() => process.exit());
