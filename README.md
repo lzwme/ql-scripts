@@ -17,7 +17,7 @@
 
 ```bash
 # ql repo <repo_url> <whitelist> <blacklist> <dependence> <branch> <extensions>
-ql repo https://github.com/lzwme/ql-scripts.git "ql_|ql-" "backup|todo|deprecated" "utils"
+ql repo https://github.com/lzwme/ql-scripts.git "ql_|ql-" "backup|todo|deprecated" "utils" "" "js ts"
 cd /ql/scripts
 pnpm add @lzwme/fe-utils commander enquirer moment json5 crypto-js axios
 ```
@@ -33,16 +33,22 @@ pnpm add @lzwme/fe-utils commander enquirer moment json5 crypto-js axios
 - 白名单：`ql_|ql-`
 - 黑名单：`backup|todo|deprecated`
 - 依赖文件：`utils`
+- 文件后缀：`js ts`
 
 依赖管理 -> `nodejs` 类型依赖添加：`@lzwme/fe-utils commander enquirer moment json5 crypto-js axios`
 
 ## 配置
 
+青龙面板 `配置文件` -> 编辑 `config.sh` 文件，搜索 `RepoFileExtensions`，增加 `ts` 配置。参考：
+
+```bash
+RepoFileExtensions="ts js py"
+```
+
 各脚本的具体配置，可参考具体脚本内注释说明进行设置。
 
 ### 通用环境变量
 
-- `process.env.LZWME_QL_CONFIG_FILE` 通用配置文件的路径。默认从当前目录及服务目录查找  `lzwme_ql_config.json5` 文件。
 - `process.env.LZWME_QL_NOTIFY_TYPE` 配置通知策略：
     - 0 - 关闭通知
     - 1 - 仅发送异常时通知。`默认值`
@@ -97,6 +103,27 @@ w2 restart
 
 - https://github.com/lzwme/whistle.x-scripts.git
 - https://github.com/lzwme/x-scripts-rules.git
+
+## 脚本列表(18)：
+
+- [ql_alipan-clean.ts - 小雅挂载阿里云资源盘清理](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_alipan-clean.ts)
+- [ql_alipan_signin.ts - 阿里云盘签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_alipan_signin.ts)
+- [ql_check_url_update.ts - 脚本内容变更检测](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_check_url_update.ts)
+- [ql_hl.ts - 哈啰签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_hl.ts)
+- [ql_huluwa.ts - 葫芦娃预约](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_huluwa.ts)
+- [ql_identical.ts - 禁用青龙重复脚本](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_identical.ts)
+- [ql_ikuuu.ts - ikuuu机场签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ikuuu.ts)
+- [ql_imaotai.ts - I茅台预约](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_imaotai.ts)
+- [ql_install_whistle.x-scripts.ts - whistle.x-scripts 插件安装与更新](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_install_whistle.x-scripts.ts)
+- [ql_iqiyi.ts - 爱奇艺签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_iqiyi.ts)
+- [ql_ModifySendNotify.js - 青龙sendNotify通知修改拦截](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ModifySendNotify.js)
+- [ql_ssone.ts - ssone机场签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ssone.ts)
+- [ql_sysxc.ts - 书亦烧仙草签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_sysxc.ts)
+- [ql_thsSignIn.ts - 同花顺签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_thsSignIn.ts)
+- [ql_videoqq.ts - 腾讯视频VIP会员签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_videoqq.ts)
+- [ql_xmlySign.ts - 喜马拉雅签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_xmlySign.ts)
+- [ql_youzan-liteapp.ts - 有赞小程序签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_youzan-liteapp.ts)
+- [ql_ysfqd.ts - 云闪付签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ysfqd.ts)
 
 ## 其他相关
 

@@ -125,7 +125,7 @@ async function reservation(appId: string, channelId: string) {
 
     if (checkRes.data == false) {
       const r = await post(constants.api.appoint, { activityId: aData.id, channelId: channelId });
-      $.log(`预约结果[appoint][${r.message}]`);
+      $.log(`预约结果[appoint][${r.message}]`, String(r.message).includes('验证码') ? 'error' : 'info');
     } else $.log(`预约结果[已经预约成功，无需重复预约]`);
   } catch (error) {
     $.log(`运行异常[${(error as Error).message}]`, 'error');

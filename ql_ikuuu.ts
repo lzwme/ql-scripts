@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-22 17:05:00
  * @LastEditors: renxia
- * @LastEditTime: 2024-05-08 11:30:53
+ * @LastEditTime: 2024-05-23 09:25:24
  * @Description: ikuuu机场签到。注册： https://ikuuu.pw/auth/register?code=75PU
 
  cron: 20 9 * * *
@@ -17,14 +17,14 @@ const $ = new Env('ikuuu机场签到');
 
 async function getIkuuuHost() {
   if (process.env.SSPANEL_HOST) return process.env.SSPANEL_HOST;
-  const defaultHost = 'https://ikuuu.pw';
+  let host = 'https://ikuuu.pw';
   try {
     const {data:html} = await $.req.get<string>('https://ikuuu.club', {}, { 'content-type': 'text/html' });
-    return /<p><a href="(https:\/\/[^"]+)\/?"/g.exec(html)?.[1] || defaultHost;
+    host = /<p><a href="(https:\/\/[^"]+)\/?"/g.exec(html)?.[1] || host;
   } catch (e) {
     console.error((e as Error).message);
   }
-  return defaultHost;
+  return host.replace(/\/$/, '');
 }
 
 export async function signCheckIn(cfg: string) {
@@ -42,7 +42,7 @@ export async function signCheckIn(cfg: string) {
     if (cookie) {
       $.log(`使用缓存 cookie: ${cookie}`);
       $.req.setCookie(cookie);
-      if (await checkin(url.checkin)) return;
+      if (await checkin(url.checkin, true)) return;
       cookie = '';
     }
   }
@@ -64,14 +64,14 @@ export async function signCheckIn(cfg: string) {
   return checkin(url.checkin);
 }
 
-async function checkin(url: string) {
+async function checkin(url: string, isUseCache = false) {
   console.log('checkin url:', url);
-  const { data } = await $.req.post(url, {});
+  const { data } = await $.req.request('POST', url, {}, {}, false);
   if (data.ret === 1 || String(data.msg).includes('签到过')) {
     $.log(`签到成功！${data.msg}`);
     return true;
   } else {
-    $.log(`❌签到失败：${data.msg}`, 'error');
+    $.log(`❌签到失败：${data.msg}`, isUseCache ? 'info' : 'error');
   }
   return false;
 }

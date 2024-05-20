@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-04-03 19:33:28
  * @LastEditors: renxia
- * @LastEditTime: 2024-04-03 19:49:49
+ * @LastEditTime: 2024-05-21 11:16:06
  * @Description:
  *
  * new Env('whistle.x-scripts 插件安装与更新')
@@ -18,6 +18,11 @@ const baseDir = process.env.QL_WHISTLE_BASEDIR || '/ql/data/scripts/whistle/';
 const repoList = ['whistle.x-scripts', 'x-scripts-rules'];
 
 async function updateRepo(repoName: string) {
+  if (repoName === 'whistle.x-scripts' && process.env.WS_GLOBAL_INSTALL !== '0') {
+    await execPromisfy(`npm i -g @lzwme/whistle.x-scripts`);
+    return;
+  }
+
   const dir = resolve(baseDir, repoName);
 
   if (fs.existsSync(resolve(dir, '.git/config'))) {

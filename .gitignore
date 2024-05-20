@@ -4,6 +4,7 @@ node_modules
 # build dist
 .nyc_output
 *.log
+/logs
 /dist/
 /cjs/
 /esm/
@@ -12,8 +13,8 @@ node_modules
 /coverage/
 /docs/
 /tmp
-/cache
 /.tmp
+/cache
 /.cache
 
 # manager
