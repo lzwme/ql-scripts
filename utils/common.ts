@@ -64,7 +64,7 @@ export async function sendNotify(title: string, body: string, params: SendNotify
     needNotify = true;
   } else needNotify = process.env.LZWME_QL_NOTIFY !== 'false';
 
-  if (isPrint !== false && (isPrint || !notifyFilePath || !needNotify)) console.log(`[notify][${title}]\n`, body);
+  if (isPrint !== false && (isPrint || !notifyFilePath || !needNotify)) console.log(`[needNotify=false][${title}]\n${body}`);
 
   if (notifyFilePath && needNotify) {
     await require(notifyFilePath).sendNotify(title, body, params, author);

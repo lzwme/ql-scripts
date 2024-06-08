@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-04-03 19:33:28
  * @LastEditors: renxia
- * @LastEditTime: 2024-05-21 11:16:06
+ * @LastEditTime: 2024-06-05 08:57:11
  * @Description:
  *
  * new Env('whistle.x-scripts 插件安装与更新')
@@ -15,7 +15,7 @@ import { execPromisfy, rmrf } from '@lzwme/fe-utils';
 const githubProxyUrl = process.env.GH_PROXY_URL ?? '';
 const baseDir = process.env.QL_WHISTLE_BASEDIR || '/ql/data/scripts/whistle/';
 
-const repoList = ['whistle.x-scripts', 'x-scripts-rules'];
+const repoList = ['x-scripts-rules', 'whistle.x-scripts'];
 
 async function updateRepo(repoName: string) {
   if (repoName === 'whistle.x-scripts' && process.env.WS_GLOBAL_INSTALL !== '0') {

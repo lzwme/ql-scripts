@@ -104,19 +104,20 @@ w2 restart
 - https://github.com/lzwme/whistle.x-scripts.git
 - https://github.com/lzwme/x-scripts-rules.git
 
-## 脚本列表(18)：
+## 脚本列表(19)：
 
+- [ql_60s.ts - 每日早报-60s读懂世界](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_60s.ts)
+- [ql_ModifySendNotify.js - 青龙sendNotify通知修改拦截](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ModifySendNotify.js)
 - [ql_alipan-clean.ts - 小雅挂载阿里云资源盘清理](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_alipan-clean.ts)
 - [ql_alipan_signin.ts - 阿里云盘签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_alipan_signin.ts)
-- [ql_check_url_update.ts - 脚本内容变更检测](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_check_url_update.ts)
 - [ql_hl.ts - 哈啰签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_hl.ts)
 - [ql_huluwa.ts - 葫芦娃预约](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_huluwa.ts)
 - [ql_identical.ts - 禁用青龙重复脚本](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_identical.ts)
 - [ql_ikuuu.ts - ikuuu机场签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ikuuu.ts)
 - [ql_imaotai.ts - I茅台预约](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_imaotai.ts)
 - [ql_install_whistle.x-scripts.ts - whistle.x-scripts 插件安装与更新](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_install_whistle.x-scripts.ts)
+- [ql_ipzan_signin.ts - 品赞代理签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ipzan_signin.ts)
 - [ql_iqiyi.ts - 爱奇艺签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_iqiyi.ts)
-- [ql_ModifySendNotify.js - 青龙sendNotify通知修改拦截](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ModifySendNotify.js)
 - [ql_ssone.ts - ssone机场签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ssone.ts)
 - [ql_sysxc.ts - 书亦烧仙草签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_sysxc.ts)
 - [ql_thsSignIn.ts - 同花顺签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_thsSignIn.ts)

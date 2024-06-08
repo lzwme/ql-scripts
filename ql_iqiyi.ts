@@ -2,8 +2,8 @@
  * @Author: renxia
  * @Date: 2024-03-12 23:52:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-03-12 10:13:25
- * @See {https://mirror.ghproxy.com/https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js| 参考}
+ * @LastEditTime: 2024-05-30 09:21:02
+ * @See {https://mirror.ghproxy.com/https://raw.githubusercontent.com/NobyDa/Script/master/iQIYI-DailyBonus/iQIYI.js | 参考}
  cron: 25 8 * * *
  new Env('爱奇艺签到')
  环境变量: IQIYI_COOKIE 抓取请求中的 cookie 。多账户用 & 或换行分割
@@ -70,28 +70,33 @@ async function login() {
 
 async function Checkin() {
   const sign_date = {
-    agentType: '1',
-    agentversion: '1.0',
-    appKey: 'basic_pcw',
-    authCookie: P00001,
-    qyid: md5(stringRandom(16)),
     task_code: 'natural_month_sign',
     timestamp: Date.now(),
-    typeCode: 'point',
+    appKey: 'lequ_rn',
     userId: P00003,
+    authCookie: P00001,
+    agenttype: 20,
+    agentversion: '15.4.6',
+    srcplatform: 20,
+    appver: '15.4.6',
+    qyid: md5(stringRandom(16)),
+    // agentType: '1',
+    // typeCode: 'point',
   };
   const post_date = {
     natural_month_sign: {
-      agentType: '1',
-      agentversion: '1',
-      authCookie: P00001,
-      qyid: md5(stringRandom(16)),
-      taskCode: 'iQIYI_mofhr',
       verticalCode: 'iQIYI',
+      agentVersion: '15.4.6',
+      authCookie: P00001,
+      taskCode: 'iQIYI_mofhr',
+      dfp: dfp,
+      qyid: md5(stringRandom(16)),
+      agentType: 20,
+      signFrom: 1,
     },
   };
-  const sign = k('UKobMjDMsDoScuWOfp6F', sign_date, { split: '|', sort: true, splitSecretKey: true });
-  const url = 'https://community.iqiyi.com/openApi/task/execute?' + toQueryString(sign_date) + '&sign=' + sign;
+  const sign = k('cRcFakm9KSPSjFEufg3W', sign_date, { split: '|', sort: true, splitSecretKey: true });
+  const url = `https://community.iqiyi.com/openApi/task/execute?${toQueryString(sign_date)}&sign=${sign}`;
   const { data: obj } = await $.req.post(url, post_date);
 
   if (obj.code === 'A00000') {
@@ -254,7 +259,7 @@ async function joinTask(task: TaskItem) {
 
 async function notifyTask(task: TaskItem) {
   const { data } = await $.req.get(
-    `https://tc.vip.iqiyi.com/taskCenter/task/notify?taskCode=${task.taskCode}` + `&lang=zh_CN&platform=0000000000000000&P00001=${P00001}`
+    `https://tc.vip.iqiyi.com/taskCenter/task/notify?taskCode=${task.taskCode}&lang=zh_CN&platform=0000000000000000&P00001=${P00001}`
   );
 
   $.log(`爱奇艺-开始任务: ${task.name} => ${data.msg || data.code || JSON.stringify(data)}`);

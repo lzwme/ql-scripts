@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-23 13:52:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-23 15:49:33
+ * @LastEditTime: 2024-05-30 09:40:44
  *
  cron: 25 7 * * *
  new Env('阿里云盘签到')
@@ -51,9 +51,10 @@ class UserInfo {
     await this.Sendtg_bot();
   }
   async reward() {
+    return $.log('请手动领取签到奖励');
     const { data: res } = await $.req.post(
       `https://member.aliyundrive.com/v1/activity/sign_in_reward`,
-      { signInDay: this.signInDay },
+      { signInDay: this.signInDay, month: (new Date().getMonth() + 1) },
       { authorization: `Bearer ${this.access_token}` }
     );
 

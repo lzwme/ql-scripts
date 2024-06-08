@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-19 13:34:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-05-09 11:52:52
+ * @LastEditTime: 2024-05-30 14:37:04
  * @Description: 青龙面板sendNotify通知修改拦截。
  * 背景：拉取的第三方脚本，执行成功与否都会发大量的广告通知。但我们希望失败时才通知，否则消息轰炸会很烦。
  * 本脚本通过注入的方式修改青龙 sendNotify 函数，可以实现仅允许消息中包含自定义关键字时才发送通知，否则拦截处理。
@@ -26,18 +26,34 @@ async function modifySendNotify() {
 
   if (process.env.QL_NOTIFY_ALLOW_WORD) {
     allowWords = process.env.QL_NOTIFY_ALLOW_WORD.split(',')
-      .map(d => d.trim())
+      .map((d) => d.trim())
       .filter(Boolean);
   }
 
   if (process.env.QL_NOTIFY_REPO_WORD) {
     allowRepoWords = process.env.QL_NOTIFY_REPO_WORD.split(',')
-      .map(d => d.trim())
+      .map((d) => d.trim())
       .filter(Boolean);
   }
 
-  if (allowWords.length === 0)
-    allowWords = ['失败', '异常', '未登录', '❌', '已失效', '无效', '重新登录', '未找到', '水果奖励', '京东资产统计'];
+  if (allowWords.length === 0) {
+    allowWords = [
+      '签到失败',
+      '登录失败',
+      '异常',
+      '未登录',
+      '❌',
+      '已失效',
+      '无效',
+      '重新登录',
+      '未找到',
+      '水果奖励',
+      '京东资产统计',
+      '[60s]',
+      '[🔔]',
+      '[💌]',
+    ];
+  }
 
   const fs = require('fs');
   const scriptsDir = process.env.QL_SCRIPTS_DIR || '/ql/data/scripts';
@@ -52,15 +68,15 @@ async function modifySendNotify() {
     'notify.py': [],
   };
   const allowModifyFiles = new Set();
-  const findNotifyFiles = dir => {
-    fs.readdirSync(dir).forEach(filename => {
+  const findNotifyFiles = (dir) => {
+    fs.readdirSync(dir).forEach((filename) => {
       const filepath = resolve(dir, filename);
 
       if (fs.statSync(filepath).isDirectory()) findNotifyFiles(filepath);
       else if (filename in notifyFiles) {
         notifyFiles[filename].push(filepath);
 
-        if (allowRepoWords.length === 0 || allowRepoWords.some(d => dir.includes(d))) {
+        if (allowRepoWords.length === 0 || allowRepoWords.some((d) => dir.includes(d))) {
           allowModifyFiles.add(filepath);
         }
       }
