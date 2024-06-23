@@ -10,7 +10,7 @@
  */
 import fs from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { execPromisfy, rmrf } from '@lzwme/fe-utils';
+import { execPromisfy, rmrf, mkdirp } from '@lzwme/fe-utils';
 
 const githubProxyUrl = process.env.GH_PROXY_URL ?? '';
 const baseDir = process.env.QL_WHISTLE_BASEDIR || '/ql/data/scripts/whistle/';
@@ -38,6 +38,7 @@ async function updateRepo(repoName: string) {
 }
 
 async function start() {
+  mkdirp(baseDir);
   process.chdir(baseDir);
   console.log(process.cwd());
 
