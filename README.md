@@ -104,27 +104,28 @@ w2 restart
 - https://github.com/lzwme/whistle.x-scripts.git
 - https://github.com/lzwme/x-scripts-rules.git
 
-## 脚本列表(19)：
+## 脚本列表(20)：
 
-- [ql_60s.ts - 每日早报-60s读懂世界](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_60s.ts)
-- [ql_ModifySendNotify.js - 青龙sendNotify通知修改拦截](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ModifySendNotify.js)
-- [ql_alipan-clean.ts - 小雅挂载阿里云资源盘清理](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_alipan-clean.ts)
-- [ql_alipan_signin.ts - 阿里云盘签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_alipan_signin.ts)
-- [ql_hl.ts - 哈啰签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_hl.ts)
-- [ql_huluwa.ts - 葫芦娃预约](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_huluwa.ts)
-- [ql_identical.ts - 禁用青龙重复脚本](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_identical.ts)
-- [ql_ikuuu.ts - ikuuu机场签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ikuuu.ts)
-- [ql_imaotai.ts - I茅台预约](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_imaotai.ts)
-- [ql_install_whistle.x-scripts.ts - whistle.x-scripts 插件安装与更新](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_install_whistle.x-scripts.ts)
-- [ql_ipzan_signin.ts - 品赞代理签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ipzan_signin.ts)
-- [ql_iqiyi.ts - 爱奇艺签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_iqiyi.ts)
-- [ql_ssone.ts - ssone机场签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ssone.ts)
-- [ql_sysxc.ts - 书亦烧仙草签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_sysxc.ts)
-- [ql_thsSignIn.ts - 同花顺签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_thsSignIn.ts)
-- [ql_videoqq.ts - 腾讯视频VIP会员签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_videoqq.ts)
-- [ql_xmlySign.ts - 喜马拉雅签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_xmlySign.ts)
-- [ql_youzan-liteapp.ts - 有赞小程序签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_youzan-liteapp.ts)
-- [ql_ysfqd.ts - 云闪付签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ysfqd.ts)
+- [每日早报-60s读懂世界](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_60s.ts)
+- [青龙sendNotify通知修改拦截](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ModifySendNotify.js)
+- [小雅挂载阿里云资源盘清理](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_alipan-clean.ts)
+- [阿里云盘签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_alipan_signin.ts)
+- [长虹美菱小程序签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_chml.ts)
+- [古井贡酒会员中心小程序](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_gujing.ts)
+- [哈啰签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_hl.ts)
+- [葫芦娃预约](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_huluwa.ts)
+- [禁用青龙重复脚本](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_identical.ts)
+- [ikuuu机场签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ikuuu.ts)
+- [I茅台预约](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_imaotai.ts)
+- [whistle.x-scripts 插件安装与更新](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_install_whistle.x-scripts.ts)
+- [品赞代理签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ipzan_signin.ts)
+- [爱奇艺签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_iqiyi.ts)
+- [ssone机场签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ssone.ts)
+- [同花顺签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_thsSignIn.ts)
+- [腾讯视频VIP会员签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_videoqq.ts)
+- [喜马拉雅签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_xmlySign.ts)
+- [有赞小程序签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_youzan-liteapp.ts)
+- [云闪付签到](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/ql_ysfqd.ts)
 
 ## 其他相关
 

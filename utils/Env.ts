@@ -58,11 +58,13 @@ export class Env {
             await t.start();
           } else await Task(userConfig, this.index, desc);
         } catch (error) {
-          this.log(`账号 ${this.index} 运行异常：${(error as Error).message}`, 'error');
+          console.error(error);
+          this.log(`❌账号 ${this.index} 运行异常：${(error as Error).message}`, 'error');
         }
       }
     } catch (e) {
       const error = e as Error;
+      console.error(error);
       this.log(`❌运行异常：${error.message}`, 'error');
     }
     this.done();
