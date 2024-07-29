@@ -13,7 +13,6 @@ import { assign } from '@lzwme/fe-utils';
 import { Env } from './utils';
 
 const $ = new Env('喜马拉雅签到', { sep: ['\n', '@'] });
-process.env.xmly_cookie = ' channel=ios-b1; 1&_device=iPhone&48B7F647-DD40-4AEA-9BA2-97AA8B81F9F4&9.2.24; impl=com.gemd.iting; NSUP=42E2AD97%2C41B8FD70%2C1710723650383; c-oper=%E7%94%B5%E4%BF%A1; net-mode=WIFI; res=828%2C1792; 1&_token=194130582&F9B45EF0240C5197105DAE34E154DA3DCC28892AEA68D5673491617EF4DC719A64D3ED4CB745170MB70B7AF26D7F39C_; idfa=48B7F647-DD40-4AEA-9BA2-97AA8B81F9F4; device_model=iPhone%2011;  fp=00411264492222422v24v063111010k020211200100000001101341002040##194130582';
 $.init(start, 'xmly_cookie').then(() => $.storage.setItem(configKey, config) && $.done());
 
 let configKey = 'xmlyConfig';
