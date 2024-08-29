@@ -30,11 +30,12 @@ export async function signCheckIn(hlToken: string) {
     if (signRes.data.didSignToday === true) {
       $.log(`今日已签到成功 金币+${signRes.data.bountyCountToday}。${signRes.data.title}`);
     } else {
+      console.log(signRes);
       $.log(`今日未签到，请检查TOKEN是否过期。`, 'error');
     }
   } else {
-    console.error(signRes);
     $.log(`签到失败：${JSON.stringify(signRes.msg)}`, 'error');
+    console.error(signRes);
     return;
   }
 
