@@ -73,7 +73,7 @@ async function modifySendNotify() {
     `var allowWords = ${JSON.stringify(allowWords)};`,
     `if (!allowWords.some(k => String(desp).includes(k) || String(text).includes(k))) return console.log('已忽略消息推送[ALLOW_WORDS]');`,
     `var banWords = ${JSON.stringify(banWords)};`,
-    `if (!banWords.some(k => String(desp).includes(k) || String(text).includes(k))) return console.log('消息推送已忽略');`,
+    `if (banWords.some(k => String(desp).includes(k) || String(text).includes(k))) return console.log('消息推送已忽略');`,
   ].join('\n');
 
   findNotifyFiles(scriptsDir);
