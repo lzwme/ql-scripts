@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-04-03 19:33:28
  * @LastEditors: renxia
- * @LastEditTime: 2024-06-05 08:57:11
+ * @LastEditTime: 2024-09-10 11:58:38
  * @Description:
  *
  * new Env('whistle.x-scripts 插件安装与更新')

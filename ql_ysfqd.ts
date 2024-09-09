@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-23 13:52:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-02-23 15:37:32
+ * @LastEditTime: 2024-09-10 11:59:45
  *
  cron: 15 7 * * *
  new Env('云闪付签到')
