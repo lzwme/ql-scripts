@@ -4,9 +4,9 @@
  * @LastEditors: renxia
  * @LastEditTime: 2024-06-08 10:40:44
  *
- cron: 30 7 * * *
+ cron: 30 7 1 1 1
  new Env('每日早报-60s读懂世界')
- 
+
  环境变量:
  export QL_60s_API='https://60s.lzw.me' # 60s API 地址。可本地搭建后自定义为本地地址，以保证可控的稳定性
 

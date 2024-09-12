@@ -1,6 +1,6 @@
 /*
  new Env("小雅挂载阿里云资源盘清理")
- cron: 20 22 * * *
+ cron: 20 22 1 1 1
 
  process.env.ALIPAN_CLEAN = 'host=http://192.168.1.10:5678;password=3aVyo8YnaXJ2XJjoTjxxxxxxxxxx';
  设置环境变量 ALIPAN_CLEAN，格式为：

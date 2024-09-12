@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-19 13:34:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-08-29 20:14:22
+ * @LastEditTime: 2024-09-12 22:49:05
  * @Description: 青龙面板sendNotify通知修改拦截。
  * @link https://github.com/lzwme/ql-scripts/blob/main/ql_ModifySendNotify.js
  *
@@ -31,13 +31,15 @@ async function modifySendNotify() {
 
   const allowWords = allowWordsString
     .split(',')
-    .map((d) => d.trim())
+    .map(d => d.trim())
     .filter(Boolean);
-  const banWords = ignoreWordsString.split(',').map(d => d.trim()).fill(Boolean);
-
+  const banWords = ignoreWordsString
+    .split(',')
+    .map(d => d.trim())
+    .filter(Boolean);
   const allowRepoWords = (process.env.QL_NOTIFY_REPO_WORD || '')
     .split(',')
-    .map((d) => d.trim())
+    .map(d => d.trim())
     .filter(Boolean);
 
   if (allowWords.length === 0) return;
@@ -55,15 +57,15 @@ async function modifySendNotify() {
     'notify.py': [],
   };
   const allowModifyFiles = new Set();
-  const findNotifyFiles = (dir) => {
-    fs.readdirSync(dir).forEach((filename) => {
+  const findNotifyFiles = dir => {
+    fs.readdirSync(dir).forEach(filename => {
       const filepath = resolve(dir, filename);
 
       if (fs.statSync(filepath).isDirectory()) findNotifyFiles(filepath);
       else if (filename in notifyFiles) {
         notifyFiles[filename].push(filepath);
 
-        if (allowRepoWords.length === 0 || allowRepoWords.some((d) => dir.includes(d))) {
+        if (allowRepoWords.length === 0 || allowRepoWords.some(d => dir.includes(d))) {
           allowModifyFiles.add(filepath);
         }
       }
