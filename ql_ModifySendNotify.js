@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-19 13:34:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-09-12 22:49:05
+ * @LastEditTime: 2024-09-18 08:47:44
  * @Description: 青龙面板sendNotify通知修改拦截。
  * @link https://github.com/lzwme/ql-scripts/blob/main/ql_ModifySendNotify.js
  *
@@ -26,7 +26,7 @@ const { resolve } = require('path');
 async function modifySendNotify() {
   const allowWordsString =
     process.env.QL_NOTIFY_ALLOW_WORD ||
-    '签到失败,登录失败,异常,未登录,❌,已失效,无效,重新登录,未找到,水果奖励,京东资产统计,[60s],[🔔],[💌]';
+    '登录失败,签到失败,异常,未登录,❌,已失效,无效,重新登录,未找到,水果奖励,京东资产统计,[60s],[🔔]';
   const ignoreWordsString = process.env.QL_NOTIFY_BAN_WORD || '';
 
   const allowWords = allowWordsString
@@ -144,9 +144,9 @@ async function modifySendNotify() {
 
 function removeInsertCode(content, type = 'js') {
   if (type === 'js') {
-    return content.replaceAll(/var allowWords.+\r?\n.+消息推送已忽略'\);\r?\n/g, '');
+    return content.replaceAll(/var allowWords = (.+\r?\n)+.+消息推送已忽略'\);\r?\n/g, '');
   }
-  return content.replaceAll(/ +allow_words = (.+\r?\n.+)+消息推送已忽略"\)(\r?\n\ +return)?\r?\n\r?\n/g, '');
+  return content.replaceAll(/ +allow_words = (.+\r?\n.+)+消息推送已忽略"\)(\r?\n\ +return)?(\r?\n)+/g, '\n');
 }
 
 // process.env.QL_SCRIPTS_DIR = 'tmp';

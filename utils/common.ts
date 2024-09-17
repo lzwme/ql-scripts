@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2024-03-05 09:42:24
+ * @LastEditTime: 2024-09-18 10:45:24
  * @Description:
  */
 
@@ -58,9 +58,11 @@ export async function sendNotify(title: string, body: string, params: SendNotify
   let needNotify = true;
 
   if (notifyType === 0) needNotify = false; // 0 - 禁用通知
-  else if (notifyType === 1) { // 1 - 有异常才通知
+  else if (notifyType === 1) {
+    // 1 - 有异常才通知
     needNotify = hasError === true;
-  } else if (notifyType === 2) { // 2 - 全通知
+  } else if (notifyType === 2) {
+    // 2 - 全通知
     needNotify = true;
   } else needNotify = process.env.LZWME_QL_NOTIFY !== 'false';
 
@@ -87,4 +89,28 @@ export async function getGeoByGD(address: string, AMAP_KEY: string) {
   }>(`https://restapi.amap.com/v3/geocode/geo?key=${AMAP_KEY}&output=json&address=${address.trim()}`);
 
   return data.geocodes;
+}
+
+export async function getLocationByIp(ip = '') {
+  const url = `https://searchplugin.csdn.net/api/v1/ip/get?ip=${ip}`;
+  const req = new Request();
+  const { data } = await req.get<{ code: number; data: { address: string; ip: string } }>(url);
+
+  if (data.code === 200 && data.data.address) {
+    let [_area, province, city] = data.data.address.split(' ');
+
+    if (['北京', '上海', '天津', '重庆'].includes(province)) {
+      province += '市';
+      city = province;
+    } else {
+      if (!province.includes('省')) province += '省';
+      if (!city.includes('市')) city += '市';
+    }
+
+    return { province, city };
+  } else {
+    console.error('[err][getLocationByIp', ip, data);
+  }
+
+  return;
 }

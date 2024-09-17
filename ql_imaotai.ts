@@ -8,7 +8,7 @@
  自行抓包并在 lzwme_ql_config.json5 文件中配置 config 信息
 
  支持环境变量配置方式（多个账号以 & 或换行分割）：
- export QL_IMAOTAI=mobile=138xxxx;token=xxx;tokenWap=xxx;city=北京市;province=北京市&mobile=138xxxx;token=xxx...
+ export QL_IMAOTAI=userId=106xxx;token=xxx;tokenWap=xxx;city=北京市;province=北京市&userId=138xxxx;token=xxx...
  */
 
 import { Request, dateFormat, assign, md5, aesEncrypt, formatToUuid, color, cookieParse } from '@lzwme/fe-utils';
@@ -16,7 +16,7 @@ import { program } from 'commander';
 import { IncomingHttpHeaders } from 'node:http';
 import { homedir, hostname } from 'node:os';
 import { resolve } from 'node:path';
-import { getGeoByGD, getConfigStorage, Env } from './utils';
+import { getGeoByGD, getConfigStorage, Env, getLocationByIp } from './utils';
 
 // process.env.QL_IMAOTAI=``
 
@@ -31,7 +31,7 @@ const itemMap: Record<string, string> = {
 };
 const config = {
   AMAP_KEY: '', // 高德地图 key，用于命令行方式登录获取经纬度，可以不用
-  appVersion: '1.6.1', // APP 版本，可以不写，会尝试自动获取
+  appVersion: '1.7.2', // APP 版本，可以不写，会尝试自动获取
   // 预约店铺策略。max: 最大投放量；maxRate: 近30日中签率最高；nearby: 距离最近店铺（默认）; keyword: shopKeywords 列表优先
   type: 'nearby' as 'max' | 'maxRate' | 'nearby' | 'keyword',
   shopKeywords: [], // 店铺白名单：用于指定高优先级的店铺，type=keyword 时，优先查找符合列表关键字的店铺申购
@@ -39,6 +39,7 @@ const config = {
   user: [
     {
       disabled: false, // 是否禁用
+      userId: '' as string | number, // 用户编号
       mobile: '', // 手机号码，用于账号配置识别
       itemCodes: [] as string[], // ['10941', '10942'], // 要预约的类型，若不设置，默认过滤 1935 和 珍品
       province: 'xx省',
@@ -282,7 +283,7 @@ const imaotai = {
         configStor.save(config);
         return this.getUserId() as any;
       }
-      console.log(`[error][getuserid][${this.user.mobile}]:`, r);
+      console.log(`[error][getuserid][${this.user.mobile || this.user.userId}]:`, r);
     }
     return r.data || {}; // userName, userId, mobile
   },
@@ -431,6 +432,7 @@ const imaotai = {
   },
   async start(inputData = config) {
     let userCount = 0;
+
     try {
       await this.getAppVersion();
       await this.getMap();
@@ -531,6 +533,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
 
   const existUser = config.user.find(d => d.mobile === mobile);
   if (existUser) imaotai.user = existUser;
+
   imaotai.user.mobile = mobile;
 
   if (!imaotai.user.lat || opts.force) {
@@ -630,6 +633,7 @@ async function promptLogin(opts: { login: boolean; force?: boolean }) {
           inputData.vcode = vcode;
           imaotai.user.token = data.token;
           imaotai.user.tokenWap = data.cookie || '';
+          imaotai.user.userId = data.userId;
         }
         return Boolean(data?.token);
       },
@@ -725,18 +729,31 @@ program
     // 支持按 deviceId 从环境变量读取已配置的值
     if (process.env.QL_IMAOTAI) {
       const list = process.env.QL_IMAOTAI.split(process.env.QL_IMAOTAI.includes('&') ? '&' : '\n');
-      list.forEach(line => {
+
+      for (const line of list) {
         const item: Partial<(typeof config)['user'][0]> = cookieParse(line);
 
-        if (item.mobile && item.token) {
-          const o = config.user.find(d => d.mobile === item.mobile);
-          if (o) Object.assign(o, item);
-          else if (item.city && item.province) {
-            // todo: 支持环境变量新增配置，支持配置城市和省份等信息
-            config.user.push(item as never);
+        if (item.token) {
+          const o = config.user.find(d => d.mobile === item.mobile || d.userId === item.userId);
+
+          if (o) {
+            Object.assign(o, item);
+          } else {
+            if (!item.city) {
+              const t = await getLocationByIp();
+              if (t) {
+                item.city = t.city;
+                item.province = t.province;
+              }
+            }
+
+            if (item.city) {
+              if (!config.user[0].userId) Object.assign(config.user[0], item);
+              else config.user.push(item as never);
+            }
           }
         }
-      });
+      }
     }
 
     if (opts.stat) {
