@@ -19,7 +19,7 @@ function getScriptsList() {
     const content = readFileSync(resolve(rootDir, filename), 'utf8');
     const title = /Env\(["' ]+([^'"]+)["' ]+\)/.exec(content)?.[1].trim() || '';
 
-    return `- [${title}](https://mirror.ghproxy.com/github.com/lzwme/ql-scripts/raw/main/${filename})`;
+    return `- [${title}](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/${filename})`;
   }).join('\n');
 
   return { list, mdContent };
