@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-05-21 10:20:11
  * @LastEditors: renxia
- * @LastEditTime: 2024-05-21 11:24:43
+ * @LastEditTime: 2025-01-09 10:22:26
  * @Description:
  */
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -19,7 +19,8 @@ function getScriptsList() {
     const content = readFileSync(resolve(rootDir, filename), 'utf8');
     const title = /Env\(["' ]+([^'"]+)["' ]+\)/.exec(content)?.[1].trim() || '';
 
-    return `- [${title}](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/${filename})`;
+    return `- [${title}](./${filename})`;
+    // return `- [${title}](https://ghpr.cc/github.com/lzwme/ql-scripts/raw/main/${filename})`;
   }).join('\n');
 
   return { list, mdContent };
@@ -29,7 +30,8 @@ function updateReadme() {
   const rdFile = resolve(rootDir, 'README.md');
   const { list, mdContent } = getScriptsList();
   const content = readFileSync(rdFile, 'utf8');
-  const updated = content.replace(/## 脚本列表\([\s\S]+\n## /g, `## 脚本列表(${list.length})：\n\n${mdContent}\n\n## `);
+  const noticeStr = `> 注意：本仓库脚本不支持单独订阅。可订阅仓库并禁用不需要的脚本。\n\n`;
+  const updated = content.replace(/## 脚本列表\([\s\S]+\n## /g, `## 脚本列表(${list.length})：\n${noticeStr}${mdContent}\n\n## `);
 
   if (updated !== content) {
     writeFileSync(rdFile, updated, 'utf8');

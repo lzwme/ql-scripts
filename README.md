@@ -74,7 +74,7 @@ fi
 
 # 拉取公开供参考学习的常用脚本规则
 if [ ! -e x-scripts-rules ]; then
-    git clone https://ghp.ci/github.com/lzwme/x-scripts-rules.git
+    git clone https://ghpr.cc/github.com/lzwme/x-scripts-rules.git
 fi
 
 # 用于存放自定义的脚本规则
@@ -105,29 +105,30 @@ w2 restart
 - https://github.com/lzwme/x-scripts-rules.git
 
 ## 脚本列表(22)：
+> 注意：本仓库脚本不支持单独订阅。可订阅仓库并禁用不需要的脚本。
 
-- [每日早报-60s读懂世界](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_60s.ts)
-- [爱玛会员俱乐部小程序](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_aima.ts)
-- [小雅挂载阿里云资源盘清理](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_alipan-clean.ts)
-- [阿里云盘签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_alipan_signin.ts)
-- [长虹美菱小程序签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_chml.ts)
-- [古井贡酒会员中心小程序](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_gujing.ts)
-- [哈啰签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_hl.ts)
-- [葫芦娃预约](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_huluwa.ts)
-- [禁用青龙重复脚本](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_identical.ts)
-- [ikuuu机场签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_ikuuu.ts)
-- [I茅台预约](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_imaotai.ts)
-- [whistle.x-scripts 插件安装与更新](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_install_whistle.x-scripts.ts)
-- [品赞代理签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_ipzan_signin.ts)
-- [爱奇艺签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_iqiyi.ts)
-- [杰士邦安心福利社-小程序](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_jsbaxfls.ts)
-- [青龙sendNotify通知修改拦截](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_ModifySendNotify.js)
-- [ssone机场签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_ssone.ts)
-- [同花顺签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_thsSignIn.ts)
-- [腾讯视频VIP会员签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_videoqq.ts)
-- [喜马拉雅签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_xmlySign.ts)
-- [有赞小程序签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_youzan-liteapp.ts)
-- [云闪付签到](https://ghp.ci/github.com/lzwme/ql-scripts/raw/main/ql_ysfqd.ts)
+- [每日早报-60s读懂世界](./ql_60s.ts)
+- [爱玛会员俱乐部小程序](./ql_aima.ts)
+- [小雅挂载阿里云资源盘清理](./ql_alipan-clean.ts)
+- [阿里云盘签到](./ql_alipan_signin.ts)
+- [长虹美菱小程序签到](./ql_chml.ts)
+- [古井贡酒会员中心小程序](./ql_gujing.ts)
+- [哈啰签到](./ql_hl.ts)
+- [葫芦娃预约](./ql_huluwa.ts)
+- [禁用青龙重复脚本](./ql_identical.ts)
+- [ikuuu机场签到](./ql_ikuuu.ts)
+- [I茅台预约](./ql_imaotai.ts)
+- [whistle.x-scripts 插件安装与更新](./ql_install_whistle.x-scripts.ts)
+- [品赞代理签到](./ql_ipzan_signin.ts)
+- [爱奇艺签到](./ql_iqiyi.ts)
+- [杰士邦安心福利社-小程序](./ql_jsbaxfls.ts)
+- [青龙sendNotify通知修改拦截](./ql_ModifySendNotify.js)
+- [ssone机场签到](./ql_ssone.ts)
+- [同花顺签到](./ql_thsSignIn.ts)
+- [腾讯视频VIP会员签到](./ql_videoqq.ts)
+- [喜马拉雅签到](./ql_xmlySign.ts)
+- [有赞小程序签到](./ql_youzan-liteapp.ts)
+- [云闪付签到](./ql_ysfqd.ts)
 
 ## 其他相关
 

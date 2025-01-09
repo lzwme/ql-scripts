@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-22 17:05:00
  * @LastEditors: renxia
- * @LastEditTime: 2024-09-10 11:58:47
+ * @LastEditTime: 2025-01-09 10:11:48
  * @Description: 品赞 HTTP 代理签到。品赞是一个HTTP优质代理IP服务供应商。
 
  const $ = new Env("品赞代理签到");
@@ -27,29 +27,30 @@ const $ = new Env('品赞代理签到');
 
 export async function signCheckIn(cookie: string) {
   const info = cookieParse(cookie);
+  let token = info.token;
 
-  if (info.phone && info.pwd) {
-    if (false === (await login(info.phone, info.pwd))) return;
-  } else if (info.token) $.req.setHeaders({ authorization: info.token });
-  else return $.log('品赞代理签到: 未设置账号与密码或 token');
+  if (info.phone && info.pwd) token = (await login(info.phone, info.pwd)) || info.token;
+  if (!token) return $.log('品赞代理签到: 未设置账号与密码或 token');
+
+  $.req.setHeaders({ authorization: `Bearer ${token.replace('Bearer ', '')}` });
 
   const { data: pRes } = await $.req.get('https://service.ipzan.com/home/userWallet-receive');
 
   if (pRes.code === 0 || String(pRes.message).includes('已领取')) $.log(`签到成功：${pRes.message}`);
-  else {
-    $.log(`签到失败: ${pRes.message}`);
+  else if (pRes.message === '登录已过期' && info.phone && info.pwd) {
+    await login(info.phone, info.pwd, false);
+    await signCheckIn(cookie);
+  } else {
+    $.log(`签到失败: ${pRes.message}`, 'error');
     console.error(pRes);
   }
 }
 
-export async function login(phone: string, password: string) {
+export async function login(phone: string, password: string, useCache = true) {
   const cacheKey = `ipzan_token_${phone}`;
   const d = $.storage.getItem(cacheKey);
 
-  if (d && Date.now() - d.t < 24 * 60 * 60 * 1000) {
-    $.req.setHeaders({ authorization: d.token });
-    return true;
-  }
+  if (useCache && d?.token && Date.now() - d.t < 24 * 60 * 60 * 1000) return d.token;
 
   let e = c.encode(''.concat(phone, 'QWERIPZAN1290QWER').concat(password));
   let t = '';
@@ -67,15 +68,18 @@ export async function login(phone: string, password: string) {
     account: e,
     source: 'ipzan-home-one',
   };
-  const { data } = await $.req.post<{ code: number; message: string; data: string }>('https://service.ipzan.com/users-login', params);
+  const { data } = await $.req.post<{ code: number; message: string; data: { token: string } }>(
+    'https://service.ipzan.com/users-login',
+    params
+  );
 
   if (data.code !== 0) $.log(`登录失败: ${data.message}`, 'error');
   else {
-    $.req.setHeaders({ authorization: data.data });
-    $.storage.setItem(cacheKey, { token: data.data, t: Date.now() });
+    $.storage.setItem(cacheKey, { token: data.data.token, t: Date.now() });
+    return data.data.token;
   }
 
-  return data.code === 0;
+  return '';
 }
 
 const c = {
