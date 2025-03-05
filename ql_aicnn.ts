@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2025-02-28 21:05:00
  * @LastEditors: renxia
- * @LastEditTime: 2025-02-28 17:51:39
+ * @LastEditTime: 2025-03-05 17:10:40
  * @Description: AICNN签到领积分 - 积分可以兑换大模型 API 调用量
 
   注册地址（使用此邀请注册可多得8888积分）：  http://aicnn.cn/loginPage?aff=4MvsDBGxfZ
@@ -17,20 +17,25 @@
 
  用法：
   - 环境变量：aicnn_token
-  - 抓包 https://api.aicnn.cn/app-api/system/user/signin 请求里面的 authorization
+  - 抓包 https://api.aicnn.cn/app-api/system/auth/refresh-token，获取 URL 中的 refreshToken 参数
   - 多账号使用 & 或换行符分割。示例：export aicnn_token="9c83d7144d7840a4ad4xxxxxxxxxxaad##memberId2&xxxxxx##memberId2"
  */
 import { Env } from './utils';
 
 const $ = new Env('AICNN签到领积分');
 
-export async function signCheckIn(token: string) {
+export async function signCheckIn(refreshToken: string) {
+  const { data: r } = await $.req.post(`https://api.aicnn.cn/app-api/system/auth/refresh-token?refreshToken=${refreshToken}`, {});
+  if (r.code !== 0) {
+    $.log(`刷新Token失败：${r.msg}`, 'error')
+    return;
+  }
+  const token = r.data?.accessToken;
+
   $.req.setHeaders({
     authorization: `Bearer ${token.replace('Bearer ', '')}`,
     accept: 'application/json',
     referer: 'https://aicnn.cn',
-    'user-agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0',
   });
   const { data } = await $.req.get<any>('https://api.aicnn.cn/app-api/system/user/signin');
 
