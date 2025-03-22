@@ -13,9 +13,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@lzwme/fe-utils": "^1.7.5",
-    "axios": "^1.7.7",
-    "commander": "^12.1.0",
+    "@lzwme/fe-utils": "^1.8.2",
+    "axios": "^1.8.4",
+    "commander": "^13.1.0",
     "console-log-colors": "^0.5.0",
     "crypto-js": "^4.2.0",
     "enquirer": "^2.4.1",
@@ -25,6 +25,6 @@
   "devDependencies": {
     "@iarna/toml": "^2.2.5",
     "@types/crypto-js": "^4.2.2",
-    "@types/node": "^22.5.5"
+    "@types/node": "^22.13.11"
   }
 }
