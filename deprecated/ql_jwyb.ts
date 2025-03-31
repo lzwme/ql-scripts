@@ -2,12 +2,13 @@
  * @Author: renxia
  * @Date: 2024-03-22 10:00:00
  * @LastEditors: renxia
- * @LastEditTime: 2025-03-22 10:00:00
+ * @LastEditTime: 2025-03-31 09:45:54
  *
  cron: 25 8 * * *
  new Env('绝味鸭脖小程序30天连续签到挑战')
  环境变量: jwyb_urls: 抓取该地址的完整请求URL：https://p3720226302625sh3s-saas.xiaoman-activity.meta-xuantan.com/activityMultiport.html
           多账户用 @ 或换行分割
+   有效期较短，重新认证需获取应用微信 code，故废弃
  */
 
 import { dateFormat, generateUuid, md5, Request, wait } from '@lzwme/fe-utils';
