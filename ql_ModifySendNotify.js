@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-19 13:34:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-09-18 08:47:44
+ * @LastEditTime: 2025-04-01 15:01:42
  * @Description: 青龙面板sendNotify通知修改拦截。
  * @link https://github.com/lzwme/ql-scripts/blob/main/ql_ModifySendNotify.js
  *
@@ -90,15 +90,20 @@ async function modifySendNotify() {
         console.log(`[js]不在允许修改列表中，移除修改内容`, filepath);
       }
 
-      return;
+      continue;
     }
 
-    if (content.includes('function sendNotify') && content.includes('desp += author;')) {
+    if (content.includes('function sendNotify(')) {
       if (content.includes(insertStr)) {
         console.log('[js]已存在插入内容：', filepath);
       } else {
-        content = removeInsertCode(content, 'js').replace(/(desp \+= author.+)/, `$1\n${insertStr}`);
+        content = removeInsertCode(content, 'js');
 
+        if (/desp \+=.+author/.test(content)) {
+          content = content.replace(/(desp \+=.+author.+)/, `$1\n${insertStr}`);
+        } else {
+          content = content.replace(/(function sendNotify\(.+)/, `$1\n${insertStr}`);
+        }
         fs.writeFileSync(filepath, content, 'utf8');
         console.log('[js]文件修改成功:', filepath);
       }
@@ -149,5 +154,5 @@ function removeInsertCode(content, type = 'js') {
   return content.replaceAll(/ +allow_words = (.+\r?\n.+)+消息推送已忽略"\)(\r?\n\ +return)?(\r?\n)+/g, '\n');
 }
 
-// process.env.QL_SCRIPTS_DIR = 'tmp';
+process.env.QL_SCRIPTS_DIR = 'tmp';
 modifySendNotify();
