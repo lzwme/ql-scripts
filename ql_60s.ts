@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-06-08 10:10:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-06-08 10:40:44
+ * @LastEditTime: 2025-04-17 09:43:33
  *
  cron: 30 7 1 1 1
  new Env('每日早报-60s读懂世界')
@@ -38,15 +38,16 @@ async function start() {
   for (let type of types) {
     type = type.trim();
     try {
-        if (type in ALL_TYPE) {
-          const msg = await fetch(`${API}?e=text&type=${type}`).then((d) => d.text());
-          const title = ALL_TYPE[type as never as keyof typeof ALL_TYPE];
-          console.log(`发送通知: [${type}][${title}]`);
-          await notify(msg.trim(), `[60s]${title}`);
-        }
-    } catch(error) {
-        console.log(error);
-        sendNotify(`[💌]每日早报[${type}]`, `error: ` + (error as Error).message);
+      if (type in ALL_TYPE) {
+        const info: { data: { news: string[]; date: string; tip: string } } = await fetch(`${API}?type=${type}`).then(d => d.json());
+        const title = ALL_TYPE[type as never as keyof typeof ALL_TYPE];
+        console.log(`发送通知: [${type}][${title}]`);
+        const msg = info.data.news.map((d, i) => `${i + 1}. ${d}`).join('\n');
+        await notify(`${msg}\n\n${info.data.tip}`, `[60s][${info.data.date}]${title}`);
+      }
+    } catch (error) {
+      console.log(error);
+      sendNotify(`[💌]每日早报[${type}]`, `error: ` + (error as Error).message);
     }
   }
 }
