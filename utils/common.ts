@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2023-11-28 11:09:04
  * @LastEditors: renxia
- * @LastEditTime: 2024-09-18 10:45:24
+ * @LastEditTime: 2025-04-17 17:08:33
  * @Description:
  */
 
@@ -66,9 +66,11 @@ export async function sendNotify(title: string, body: string, params: SendNotify
     needNotify = true;
   } else needNotify = process.env.LZWME_QL_NOTIFY !== 'false';
 
-  if (isPrint !== false && (isPrint || !notifyFilePath || !needNotify)) console.log(`[needNotify=false][${title}]\n${body}`);
+  if (isPrint !== false && (isPrint || !notifyFilePath || !needNotify)) console.log(`[needNotify=${needNotify}][${title}]\n${body}`);
 
-  if (notifyFilePath && needNotify) {
+  if (!notifyFilePath) {
+    console.warn('未发现 sendNotify.js 文件！');
+  } else if (needNotify) {
     await require(notifyFilePath).sendNotify(title, body, params, author);
   }
 
