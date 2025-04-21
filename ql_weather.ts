@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2025-04-17 20:50:46
  * @LastEditors: renxia
- * @LastEditTime: 2025-04-17 21:16:19
+ * @LastEditTime: 2025-04-21 09:07:01
  * 每日天气推送。API 参考： https://www.sojson.com/api/weather.html
  cron: 30 7 1 1 1
  new Env('每日天气')
@@ -68,12 +68,11 @@ async function start(city_code?: string) {
 
   // 未来 N 天天气预报
   const sevenDaysWeather = data.data.forecast.map(day => [
-    day.ymd,
-    day.week,
-    day.low,
-    day.high,
-    String(day.type).padEnd(4, ' '),
-    day.notice,
+    day.ymd.replaceAll('-', '').slice(4),
+    day.week.replace('星期', ''),
+    `${day.low}~${day.high}`.replace('低温 ', '').replace('高温 ', ''),
+    day.type,
+    // day.notice,
   ]);
   const formattedSevenDays = sevenDaysWeather.map(day => day.join(' ')).join('\n');
   const body = `${msg}\n\n${formattedSevenDays}`;
