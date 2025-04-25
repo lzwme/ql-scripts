@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-06-08 10:10:46
  * @LastEditors: renxia
- * @LastEditTime: 2025-04-21 08:54:21
+ * @LastEditTime: 2025-04-25 08:47:58
  *
  cron: 30 7 1 1 1
  new Env('每日早报-60s读懂世界')
@@ -43,7 +43,7 @@ async function start() {
         const title = ALL_TYPE[type as never as keyof typeof ALL_TYPE];
         // console.log(`发送通知: [${type}][${title}]`);
         const msg = info.data.news.map((d, i) => `${i + 1}. ${d}`).join('\n');
-        await notify(`${msg}\n\n${info.data.tip}`, `[${type}][${info.data.date}]${title}`);
+        await notify(`${msg}\n\n[${info.data.date}]${info.data.tip}`, `${title}`);
       }
     } catch (error) {
       console.log(error);
