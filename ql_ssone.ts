@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-22 17:05:00
  * @LastEditors: renxia
- * @LastEditTime: 2024-03-12 11:27:30
+ * @LastEditTime: 2025-05-16 10:41:23
  * @Description: ssone机场签到。注册： https://m.ssonecloud.com/register?aff=vap2VlUi
 
  cron: 21 9 * * *
@@ -32,7 +32,7 @@ export async function signCheckIn(cfg: string) {
   if (!cookie) {
     const { data, headers } = await $.req.get(url.login, { email, password: passwd });
     if (data.data) {
-      $.req.setCookie(`auth=${data.data}`);
+      $.req.setConfig({ cookie: `auth=${data.data}` });
       cookie = headers['set-cookie']!.map(d => d.split(';')[0]).join(';');
       $.log(data.msg || `登录成功！`);
     } else {
@@ -42,7 +42,7 @@ export async function signCheckIn(cfg: string) {
     }
   }
 
-  $.req.setCookie(cookie);
+  $.req.setConfig({ cookie });
 
   const { data } = await $.req.get(url.checkin);
   if (data.ret === 1 || String(data.message).includes('Already')) {
