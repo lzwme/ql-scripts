@@ -2,12 +2,13 @@
  * @Author: renxia
  * @Date: 2024-02-20 10:31:21
  * @LastEditors: renxia
- * @LastEditTime: 2024-04-08 11:18:27
+ * @LastEditTime: 2025-05-16 10:46:17
  * @Description:
  */
-import { type AnyObject, Request } from '@lzwme/fe-utils';
-import { strip, redBright } from 'console-log-colors';
+import { type AnyObject, Request, color } from '@lzwme/fe-utils';
 import { getCacheStorage, sendNotify } from './common';
+
+const { redBright, strip } = color;
 
 interface EnvOptions {
   /** 多账号分隔符。默认为 &、\n */
@@ -26,6 +27,7 @@ export class Env {
   public hasError: boolean | number = 0;
   public req = new Request(undefined, { 'content-type': 'application/json' });
   public storage: ReturnType<typeof getCacheStorage<AnyObject>>;
+  public color = color;
   constructor(public name: string, options?: EnvOptions) {
     this.log(`[${this.name}]开始运行\n`, 'debug');
     this.storage = getCacheStorage(name);

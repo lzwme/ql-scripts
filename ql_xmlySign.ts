@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-23 13:52:46
  * @LastEditors: renxia
- * @LastEditTime: 2024-03-18 13:16:56
+ * @LastEditTime: 2025-05-16 10:44:35
  * @see https://github.com/ClydeTime/Quantumult/blob/main/Script/Task/xmlySign.js
  cron: 35 7 * * *
  new Env('喜马拉雅签到')
@@ -13,7 +13,7 @@ import { assign } from '@lzwme/fe-utils';
 import { Env } from './utils';
 
 const $ = new Env('喜马拉雅签到', { sep: ['\n', '@'] });
-$.init(start, 'xmly_cookie').then(() => $.storage.setItem(configKey, config) && $.done());
+$.init(start, 'xmly_cookie').then(() => $.storage.setItem(configKey, config)).then(() => $.done());
 
 let configKey = 'xmlyConfig';
 let startTime = Date.now();

@@ -4,10 +4,10 @@
 
 - 本项目发布的脚本及其中涉及的任何逆向解密分析内容，仅用于个人测试和学习研究，不用于其他任何目的，严禁用于商业用途和非法用途，否则由此产生的一切后果均与作者无关。
 - 请自行评估使用本项目内容可能产生的安全风险，不能保证其合法性，准确性，完整性和有效性，请根据情况自行判断。本人对使用本项目涉及的任何脚本引发的问题概不负责，包括但不限于由脚本错误引起的任何损失或损害。
-- 间接使用脚本的任何用户，包括但不限于建立VPS或在某些行为违反国家/地区法律或相关法规的情况下进行传播, 本人对于由此引起的任何隐私泄漏或其他后果概不负责。
+- 间接使用脚本的任何用户，包括但不限于建立 VPS 或在某些行为违反国家/地区法律或相关法规的情况下进行传播, 本人对于由此引起的任何隐私泄漏或其他后果概不负责。
 - 本项目内所有资源文件，禁止任何公众号、自媒体进行任何形式的转载、发布。
 - 如果任何单位或个人认为该项目的脚本可能涉嫌侵犯其权利，则应及时通知并提供身份证明，所有权证明，我们将在收到认证文件后删除相关脚本。
-- 任何以任何方式查看此项目的人或直接或间接使用该项目的任何脚本的使用者都应仔细阅读此声明。本人保留随时更改或补充此免责声明的权利。一旦使用并复制了任何相关脚本或Script项目的规则，则视为您已接受此免责声明。
+- 任何以任何方式查看此项目的人或直接或间接使用该项目的任何脚本的使用者都应仔细阅读此声明。本人保留随时更改或补充此免责声明的权利。一旦使用并复制了任何相关脚本或 Script 项目的规则，则视为您已接受此免责声明。
 - **请在下载本项目并完成学习研究后立即予以删除全部内容。**
 - 您使用或者复制了本仓库制作的任何脚本，则视为 **已接受** 以上声明，请仔细阅读。
 
@@ -35,7 +35,7 @@ pnpm add @lzwme/fe-utils commander enquirer moment json5 crypto-js axios
 - 依赖文件：`utils`
 - 文件后缀：`js ts`
 
-依赖管理 -> `nodejs` 类型依赖添加：`@lzwme/fe-utils commander enquirer moment json5 crypto-js axios`
+依赖管理 -> `nodejs` 类型依赖添加：`@lzwme/fe-utils axios commander console-log-colors crypto-js enquirer json5 moment`
 
 ## 配置
 
@@ -50,9 +50,9 @@ RepoFileExtensions="ts js py"
 ### 通用环境变量
 
 - `process.env.LZWME_QL_NOTIFY_TYPE` 配置通知策略：
-    - 0 - 关闭通知
-    - 1 - 仅发送异常时通知。`默认值`
-    - 2 - 全通知
+  - 0 - 关闭通知
+  - 1 - 仅发送异常时通知。`默认值`
+  - 2 - 全通知
 
 ### 脚本变量快速自动获取与更新至青龙面板的方法参考
 
@@ -105,9 +105,10 @@ w2 restart
 - https://github.com/lzwme/x-scripts-rules.git
 
 ## 脚本列表(22)：
+
 > 注意：本仓库脚本不支持单独订阅。可订阅仓库并禁用不需要的脚本。
 
-- [每日早报-60s读懂世界](./ql_60s.ts)
+- [每日早报-60s 读懂世界](./ql_60s.ts)
 - [爱玛会员俱乐部小程序](./ql_aima.ts)
 - [小雅挂载阿里云资源盘清理](./ql_alipan-clean.ts)
 - [阿里云盘签到](./ql_alipan_signin.ts)
@@ -116,16 +117,16 @@ w2 restart
 - [哈啰签到](./ql_hl.ts)
 - [葫芦娃预约](./ql_huluwa.ts)
 - [禁用青龙重复脚本](./ql_identical.ts)
-- [ikuuu机场签到](./ql_ikuuu.ts)
-- [I茅台预约](./ql_imaotai.ts)
+- [ikuuu 机场签到](./ql_ikuuu.ts)
+- [I 茅台预约](./ql_imaotai.ts)
 - [whistle.x-scripts 插件安装与更新](./ql_install_whistle.x-scripts.ts)
 - [品赞代理签到](./ql_ipzan_signin.ts)
 - [爱奇艺签到](./ql_iqiyi.ts)
 - [杰士邦安心福利社-小程序](./ql_jsbaxfls.ts)
-- [青龙sendNotify通知修改拦截](./ql_ModifySendNotify.js)
-- [ssone机场签到](./ql_ssone.ts)
+- [青龙 sendNotify 通知修改拦截](./ql_ModifySendNotify.js)
+- [ssone 机场签到](./ql_ssone.ts)
 - [同花顺签到](./ql_thsSignIn.ts)
-- [腾讯视频VIP会员签到](./ql_videoqq.ts)
+- [腾讯视频 VIP 会员签到](./ql_videoqq.ts)
 - [喜马拉雅签到](./ql_xmlySign.ts)
 - [有赞小程序签到](./ql_youzan-liteapp.ts)
 - [云闪付签到](./ql_ysfqd.ts)
@@ -136,5 +137,12 @@ w2 restart
 
 - [腾讯位置服务](https://lbs.qq.com/getPoint/)
 - [高德地图坐标拾取器](https://lbs.amap.com/tools/picker)
-- [详细地址解析成经纬度/GPS坐标在线工具](https://www.toolnb.com/tools/areaDataToGps.html)
+- [详细地址解析成经纬度/GPS 坐标在线工具](https://www.toolnb.com/tools/areaDataToGps.html)
 - [高德地图拾取器](https://www.toolnb.com/tools/gaodegetmap.html)
+
+### 相关链接
+
+- [青龙面板](https://github.com/whyour/qinglong)
+- [Whistle](https://github.com/avwo/whistle)
+- [Whistle.x-scripts](https://github.com/lzwme/whistle.x-scripts)
+- [x-scripts-rules](https://github.com/lzwme/x-scripts-rules)
