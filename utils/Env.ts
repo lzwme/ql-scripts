@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-02-20 10:31:21
  * @LastEditors: renxia
- * @LastEditTime: 2025-05-16 10:46:17
+ * @LastEditTime: 2025-07-24 16:19:17
  * @Description:
  */
 import { type AnyObject, Request, color } from '@lzwme/fe-utils';
@@ -53,7 +53,7 @@ export class Env {
         try {
           this.index = +idx + 1;
           let desc = '';
-          if (typeof userConfig === 'string') [userConfig, desc = ''] = userConfig.split('##'); // 支持以 ## 隔离描述，可主要用于唯一 uid 标记
+          if (typeof userConfig === 'string') [userConfig, desc = ''] = userConfig.split('##').map(d =>d.trim()); // 支持以 ## 隔离描述，可主要用于唯一 uid 标记
           this.log(`🆔账号${this.index}：${desc || ''}`);
           if (typeof Task.prototype?.start === 'function') {
             const t = new Task(userConfig, this.index, desc);
@@ -78,6 +78,9 @@ export class Env {
     const arr = envValue.split(sep).filter(Boolean);
     if (arr.length > 1) this.log(`共找到了 ${arr.length} 个账号`);
     return arr;
+  }
+  public debug(...msg: any[]) {
+    if (process.env.QL_LZW_DEBUG == '1') console.debug('[debug]', ...msg);
   }
   public log(msg: string, type: 'error' | 'info' | 'warn' | 'log' | 'debug' | 'D' = 'info') {
     if (type === 'D') type = 'debug';
