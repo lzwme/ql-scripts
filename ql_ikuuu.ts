@@ -2,8 +2,8 @@
  * @Author: renxia
  * @Date: 2024-02-22 17:05:00
  * @LastEditors: renxia
- * @LastEditTime: 2025-05-16 10:50:43
- * @Description: ikuuu机场签到。注册： https://ikuuu.pw/auth/register?code=75PU
+ * @LastEditTime: 2025-08-11 09:26:24
+ * @Description: ikuuu机场签到。注册： https://ikuuu.de/auth/register?code=75PU
 
  cron: 20 9 * * *
  环境变量： IKUUU，必填。格式： 邮箱#密码，也可以是 cookie（有效期一个星期）。多个账户以 & 或 \n 换行分割
@@ -17,13 +17,13 @@ const $ = new Env('ikuuu机场签到');
 
 async function getIkuuuHost() {
   if (process.env.SSPANEL_HOST) return process.env.SSPANEL_HOST;
-  let host = 'https://ikuuu.pw';
-  try {
-    const {data:html} = await $.req.get<string>('https://ikuuu.club', {}, { 'content-type': 'text/html' });
-    host = /<p><a href="(https:\/\/[^"]+)\/?"/g.exec(html)?.[1] || host;
-  } catch (e) {
-    console.error((e as Error).message);
-  }
+  let host = 'https://ikuuu.de';
+  // try {
+  //   const {data:html} = await $.req.get<string>('https://ikuuu.club', {}, { 'content-type': 'text/html' });
+  //   host = /<p><a href="(https:\/\/[^"]+)\/?"/g.exec(html)?.[1] || host;
+  // } catch (e) {
+  //   console.error((e as Error).message);
+  // }
   return host.replace(/\/$/, '');
 }
 
