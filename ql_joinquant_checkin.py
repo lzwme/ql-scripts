@@ -1283,44 +1283,61 @@ def do_checkin(page):
         else:
             log("⚠️ 签到验证码超时，请查看截图确认")
 
-    # ===== 领取文章阅读奖励（积分中心）=====
-    log("检查文章阅读奖励...")
+    # ===== 领取所有可领取的奖励（积分中心）=====
+    log("检查积分中心所有可领取奖励...")
     time.sleep(1)
-    claim_btn = None
-    for sel in ["button:has-text('立即领取')", "a:has-text('立即领取')",
-                ".btn:has-text('立即领取')", "button:has-text('领取')"]:
-        try:
-            el = page.query_selector(sel)
-            if el and el.is_visible():
-                text = el.inner_text().strip()
-                if "已领取" in text:
-                    log(f"  跳过'{text}'按钮（已领取状态）")
-                    continue
-                claim_btn = el
-                log(f"  发现「{text}」按钮: {sel}")
-                break
-        except Exception:
-            pass
 
-    if claim_btn:
-        log("点击「立即领取」...")
+    # 获取所有"立即领取"按钮及其对应的积分类型
+    claim_items = page.evaluate("""() => {
+        const btns = [...document.querySelectorAll('.floor-credit-center button:not([disabled])')];
+        return btns
+            .filter(d => d.innerText.trim() === '立即领取')
+            .map(btn => {
+                // 获取对应的积分类型名称
+                let taskName = '';
+                try {
+                    const header = btn.parentNode.parentNode.parentNode.parentNode.querySelector('.header-title');
+                    taskName = header ? header.innerText.trim() : '签到';
+                } catch(e) {}
+                return { taskName, index: btns.indexOf(btn) };
+            })
+            // .filter(item => item.taskName); // 只保留能获取到任务名的
+    }""")
+
+    if not claim_items:
+        log("  未发现「立即领取」按钮（可能今日已领取或无奖励）")
+        return checkin_ok
+
+    log(f"  发现 {len(claim_items)} 个可领取任务: {[item['taskName'] for item in claim_items]}")
+
+    # 逐个执行领取
+    for i, item in enumerate(claim_items):
+        task_name = item['taskName']
+        log(f"  [{i+1}/{len(claim_items)}] 领取「{task_name}」...")
+
         try:
             install_xhr_interceptor(page)
         except Exception:
             pass
-        claim_btn.click()
-        time.sleep(2)
-        screenshot(page, "08_claim_captcha.jpg")
 
-        claim_ok = solve_captcha_auto(page, context="立即领取")
+        # 点击当前按钮
+        page.evaluate(f"""() => {{
+            const btns = [...document.querySelectorAll('.floor-credit-center button:not([disabled])')];
+            const validBtns = btns.filter(d => d.innerText.trim() === '立即领取');
+            if (validBtns[{i}]) validBtns[{i}].click();
+        }}""")
+        time.sleep(1)
+        screenshot(page, f"08_claim_captcha_{i+1}.jpg")
+
+        claim_ok = solve_captcha_auto(page, context=f"「{task_name}」领取")
         time.sleep(2)
-        screenshot(page, "09_after_claim.jpg")
+        screenshot(page, f"09_after_claim_{i+1}.jpg")
+
         if claim_ok:
-            log("✅ 文章奖励领取完成")
+            log(f"  ✅ 「{task_name}」领取完成")
         else:
-            log("⚠️ 文章奖励领取验证码超时")
-    else:
-        log("  未发现「立即领取」按钮（可能今日已领取或无奖励）")
+            log(f"  ⚠️ 「{task_name}」领取验证码超时")
+
 
     return checkin_ok
 
