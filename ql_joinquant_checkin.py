@@ -13,8 +13,9 @@ new Env('聚宽社区每日签到')
   - 容器：IN_DOCKER=1 或存在 /.dockerenv 时追加 --no-sandbox --disable-dev-shm-usage
   - 无头/无显示：需在容器内配置虚拟显示（如 xvfb-run）或带 DISPLAY 的环境
 环境变量：
-  JQDATA_USERNAME=用户名 # 必填
-  JQDATA_PASSWORD=密码 # 必填
+  JQDATA_USERNAME=用户名 # 单账号必填
+  JQDATA_PASSWORD=密码 # 单账号必填
+  JQDATA_ACCOUNTS=用户名1:密码1,用户名2:密码2 # 多账号（用英文逗号分隔，用户名和密码用英文冒号分隔）
   BROWSER_CHROMIUM_EXE=浏览器可执行文件路径 # 可选
   BROWSER_CDP_PORT=cdp端口，默认 9222
   BROWSER_CDP_WAIT_SEC=cdp等待时间，默认 20 秒
@@ -998,20 +999,92 @@ def is_logged_in(page):
     except Exception:
         return False
 
-def ensure_login(page):
-    """检测登录状态，未登录则自动登录"""
-    log("检查登录状态...")
+def parse_accounts():
+    """
+    解析账号列表。
+    优先 JQDATA_ACCOUNTS（多账号），否则回退 JQDATA_USERNAME/JQDATA_PASSWORD（单账号）。
+    返回 [(username, password), ...] 列表。
+    """
+    accounts_str = os.environ.get("JQDATA_ACCOUNTS", "").strip()
+    if accounts_str:
+        accounts = []
+        for item in accounts_str.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            if ":" in item:
+                parts = item.split(":", 1)
+                user = parts[0].strip()
+                pwd = parts[1].strip() if len(parts) > 1 else ""
+            else:
+                # 兼容仅用户名（密码为空）
+                user = item
+                pwd = ""
+            if user:
+                accounts.append((user, pwd))
+        if accounts:
+            return accounts
 
-    if is_logged_in(page):
-        log("✅ 已登录")
-        return True
+    # 单账号模式
+    username = os.environ.get("JQDATA_USERNAME", "").strip()
+    password = os.environ.get("JQDATA_PASSWORD", "").strip()
+    if username:
+        return [(username, password)]
+    return []
 
-    log("未登录，准备自动登录...")
-    username = os.environ.get("JQDATA_USERNAME", "")
-    password = os.environ.get("JQDATA_PASSWORD", "")
+def get_current_user(page):
+    """通过 API 获取当前登录账号的 userName，未登录返回 None"""
+    try:
+        result = page.evaluate("""() => {
+            return fetch('https://www.joinquant.com/user/index/isLogin', {
+                credentials: 'include'
+            }).then(r => r.json());
+        }""")
+        if result and result.get('data') and result['data'].get('isLogin') == 1:
+            return result['data'].get('userName') or ''
+    except Exception:
+        pass
+    return None
+
+def logout(page):
+    """退出当前登录，为切换账号做准备。"""
+    log("  退出登录...")
+    try:
+        # 跳转到登出页面
+        js_navigate(page, "https://www.joinquant.com/user/logout", wait=3)
+        time.sleep(2)
+        # 确认已退出
+        if not get_current_user(page):
+            log("  ✅ 已退出登录")
+            return True
+        log("  ⚠️ 登出后仍检测到登录态，尝试清除 cookies")
+        context = page.context
+        context.clear_cookies()
+        time.sleep(1)
+    except Exception as e:
+        log(f"  ⚠️ 退出登录异常: {e}")
+        try:
+            page.context.clear_cookies()
+        except Exception:
+            pass
+    return True
+
+def ensure_login(page, username, password):
+    """检测登录状态：先识别当前账号，匹配则跳过，否则退出后重新登录"""
     if not username or not password:
-        log("❌ 环境变量 JQDATA_USERNAME / JQDATA_PASSWORD 未设置")
+        log("❌ 用户名/密码为空")
         return False
+
+    current_user = get_current_user(page)
+    if current_user:
+        log(f"当前登录账号: {current_user}")
+        if current_user == username:
+            log(f"✅ 已登录目标账号，无需重新登录")
+            return True
+        log(f"⚠️ 账号不匹配（当前: {current_user}，目标: {username}），切换账号...")
+        logout(page)
+    else:
+        log(f"未登录，准备登录 {username}...")
 
     js_navigate(page, "https://www.joinquant.com/user/login/index", wait=3)
     time.sleep(2)
@@ -1052,6 +1125,20 @@ def ensure_login(page):
 
     time.sleep(3)
 
+    # 检查是否出现风控滑块验证码
+    try:
+        captcha_container = page.query_selector("#yth_captchar")
+        if captcha_container and captcha_container.is_visible():
+            log("  登录触发风控滑块验证码，尝试自动解决...")
+            if not solve_captcha_auto(page, context="登录验证"):
+                log("  ⚠️ 登录验证码自动处理失败，等待人工处理")
+                if not wait_for_captcha_manual(page, context="登录验证", timeout=MANUAL_CAPTCHA_TIMEOUT):
+                    log("  ❌ 登录验证码未通过")
+                    return False
+            time.sleep(1)
+    except Exception:
+        pass
+
     # 检查是否登录成功
     if not is_logged_in(page):
         log("❌ 登录失败")
@@ -1075,18 +1162,10 @@ def read_article(page):
     current_url = page.url
     log(f"当前页面：{current_url}")
 
-    # 检测登录状态，未登录则自动登录
+    # 检测登录状态，被重定向到登录页则失败（登录由外层统一处理）
     if "login" in current_url.lower():
-        log("被重定向到登录页，尝试自动登录...")
-        if not ensure_login(page):
-            return False
-        # 登录成功后重新导航到文章列表
-        js_navigate(page, "https://www.joinquant.com/view/community/list?listType=1", wait=4)
-        time.sleep(2)
-    else:
-        # 检查页面是否需要登录
-        if not ensure_login(page):
-            return False
+        log("❌ 被重定向到登录页，登录状态丢失")
+        return False
 
     # 等待文章列表加载
     try:
@@ -1159,18 +1238,25 @@ def read_article(page):
         except Exception:
             pass
 
-    # 方法3：直接点击卡片并等待 URL 变化
+    # 方法3：直接点击卡片，会新窗口打开文章
     if not article_url:
-        url_before = page.url
         click_target = title_el if title_el else chosen_item
         try:
-            click_target.click()
-            log("  点击文章卡片，等待页面跳转...")
-            for _ in range(20):
-                time.sleep(0.5)
-                if page.url != url_before:
-                    article_url = page.url
-                    break
+            # 监听新打开的页面
+            with page.context.expect_page() as new_page_info:
+                click_target.click()
+            new_page = new_page_info.value
+            log(f"  文章在新标签页打开: {new_page.url}")
+            time.sleep(2)
+            # 在新页面中模拟阅读
+            log("开始阅读文章（等待12秒，模拟滚动）...")
+            for i in range(4):
+                new_page.mouse.wheel(0, random.randint(200, 400))
+                time.sleep(3)
+            log("✅ 文章阅读完成（共12秒）")
+            # 阅读完毕，关闭新标签页
+            new_page.close()
+            log("  已关闭文章标签页")
             return True
         except Exception as e:
             log(f"  点击失败: {e}")
@@ -1351,6 +1437,16 @@ def run_checkin():
     log("=== 聚宽社区每日签到开始 ===")
     log(f"检测到平台: {'Windows' if IS_WINDOWS else 'macOS' if IS_MAC else 'Linux'}")
 
+    # 解析账号列表
+    accounts = parse_accounts()
+    if not accounts:
+        log("❌ 未配置任何账号（请设置 JQDATA_ACCOUNTS 或 JQDATA_USERNAME/JQDATA_PASSWORD）")
+        sys.exit(1)
+
+    log(f"共配置 {len(accounts)} 个账号")
+    for i, (u, _) in enumerate(accounts):
+        log(f"  账号{i+1}: {u}")
+
     if _used_env_browser:
         log(f"使用环境变量指定的浏览器: {BROWSER_NAME}")
         log(f"  路径: {BROWSER_EXE}")
@@ -1376,28 +1472,53 @@ def run_checkin():
             log(f"❌ CDP 连接失败: {e}")
             sys.exit(1)
 
-        context = browser.contexts[0] if browser.contexts else browser.new_context()
-        if context.pages:
-            page = context.pages[0]
-        else:
-            page = context.new_page()
+        # 多账号循环签到
+        results = []
+        for acc_idx, (username, password) in enumerate(accounts):
+            log("")
+            log(f"==================== 账号 [{acc_idx+1}/{len(accounts)}] {username} ====================")
 
-        page.set_default_timeout(30000)
+            try:
+                # 每个账号使用独立的 browser context，隔离 cookie/localStorage
+                context = browser.new_context()
+                page = context.new_page()
+                page.set_default_timeout(30000)
 
-        # 在执行任务前安装 XHR 拦截器
-        try:
-            install_xhr_interceptor(page)
-            log("XHR 拦截器已预安装")
-        except Exception as e:
-            log(f"XHR 拦截器安装失败: {e}")
+                # 安装 XHR 拦截器
+                try:
+                    install_xhr_interceptor(page)
+                    log("XHR 拦截器已安装")
+                except Exception as e:
+                    log(f"XHR 拦截器安装失败: {e}")
 
-        # 执行任务
-        article_ok = read_article(page)
-        checkin_ok = do_checkin(page)
+                # 登录
+                if not ensure_login(page, username, password):
+                    log(f"❌ 账号 {username} 登录失败，跳过")
+                    results.append((username, False, False))
+                    context.close()
+                    continue
 
-        log("=== 所有任务执行完毕 ===")
-        log(f"  文章阅读: {'✅ 成功' if article_ok else '❌ 失败'}")
-        log(f"  每日签到: {'✅ 成功' if checkin_ok else '❌ 失败'}")
+                # 执行任务
+                article_ok = read_article(page)
+                checkin_ok = do_checkin(page)
+
+                log(f"--- 账号 {username} 完成 ---")
+                log(f"  文章阅读: {'✅ 成功' if article_ok else '❌ 失败'}")
+                log(f"  每日签到: {'✅ 成功' if checkin_ok else '❌ 失败'}")
+                results.append((username, article_ok, checkin_ok))
+
+                context.close()
+                log(f"  浏览器上下文已关闭（session 隔离）")
+
+            except Exception as e:
+                log(f"❌ 账号 {username} 执行异常: {e}")
+                results.append((username, False, False))
+
+        log("")
+        log("==================== 全部账号执行结果汇总 ====================")
+        for username, article_ok, checkin_ok in results:
+            log(f"  {username}: 阅读{'✅' if article_ok else '❌'} | 签到{'✅' if checkin_ok else '❌'}")
+        log("==================== 所有任务执行完毕 ====================")
 
         browser.close()
         log(f"CDP 连接已断开（{BROWSER_NAME} 浏览器继续运行）")
