@@ -29,3 +29,11 @@ pnpm-lock.yaml
 # config
 /.flh.config.js
 /lzwme_ql_config.*
+
+.workbuddy
+.codebuddy
+.cluade
+.cursor
+
+# 青龙面板会复制一份到当前目录
+/sendNotify.js

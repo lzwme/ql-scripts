@@ -104,11 +104,10 @@ w2 restart
 - https://github.com/lzwme/whistle.x-scripts.git
 - https://github.com/lzwme/x-scripts-rules.git
 
-## 脚本列表(24)：
+## 脚本列表(25)：
 > 注意：本仓库脚本不支持单独订阅。可订阅仓库并禁用不需要的脚本。
 
 - [每日早报-60s读懂世界](./ql_60s.ts)
-- [AICNN签到领积分](./ql_aicnn.ts)
 - [爱玛会员俱乐部小程序](./ql_aima.ts)
 - [小雅挂载阿里云资源盘清理](./ql_alipan-clean.ts)
 - [阿里云盘签到](./ql_alipan_signin.ts)
@@ -121,14 +120,16 @@ w2 restart
 - [whistle.x-scripts 插件安装与更新](./ql_install_whistle.x-scripts.ts)
 - [品赞代理签到](./ql_ipzan_signin.ts)
 - [爱奇艺签到](./ql_iqiyi.ts)
+- [聚宽社区每日签到](./ql_joinquant_checkin.py)
 - [杰士邦安心福利社-小程序](./ql_jsbaxfls.ts)
 - [青龙sendNotify通知修改拦截](./ql_ModifySendNotify.js)
+- [[AnyRouter]NewAPI通用签到](./ql_newapi_signin.ts)
 - [ssone机场签到](./ql_ssone.ts)
 - [同花顺签到](./ql_thsSignIn.ts)
 - [腾讯视频VIP会员签到](./ql_videoqq.ts)
 - [每日天气](./ql_weather.ts)
+- [WorkBuddy每日签到](./ql_workbuddy_daily.py)
 - [喜马拉雅签到](./ql_xmlySign.ts)
-- [yourapi签到领积分](./ql_yourapi.ts)
 - [有赞小程序签到](./ql_youzan-liteapp.ts)
 - [云闪付签到](./ql_ysfqd.ts)
 

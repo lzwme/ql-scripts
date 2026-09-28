@@ -30,7 +30,6 @@ import { Env } from './utils';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { bootstrap } from 'global-agent';
 
 const $ = new Env('[AnyRouter]NewAPI通用签到');
 

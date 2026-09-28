@@ -2,7 +2,7 @@
  * @Author: renxia
  * @Date: 2024-05-21 10:20:11
  * @LastEditors: renxia
- * @LastEditTime: 2025-01-09 10:22:26
+ * @LastEditTime: 2026-09-28 14:03:13
  * @Description:
  */
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -14,7 +14,7 @@ const rootDir = process.cwd();
 
 
 function getScriptsList() {
-  const list = readdirSync(rootDir).filter(d => /^ql_.+\.(ts|js)$/.test(d));
+  const list = readdirSync(rootDir).filter(d => /^ql_.+\.(ts|js|py)$/.test(d));
   const mdContent = list.map(filename => {
     const content = readFileSync(resolve(rootDir, filename), 'utf8');
     const title = /Env\(["' ]+([^'"]+)["' ]+\)/.exec(content)?.[1].trim() || '';
