@@ -4,7 +4,7 @@
 @source:  https://gh-proxy.org/github.com/L0NE-6/WorkBuddy-Daily/raw/refs/heads/main/workbuddy_daily.py
 
 cron: 0 7,12 * * *
-new Env('WorkBuddy每日签到')
+new Env('WorkBuddy每日自动签到')
 
 🌱 WorkBuddy Daily - 全能签到脚本 v2.5
 ════════════════════════════════════════════════════════════════
