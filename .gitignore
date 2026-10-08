@@ -5,7 +5,7 @@ __pycache__
 # build dist
 .nyc_output
 *.log
-/logs
+logs
 /dist/
 /cjs/
 /esm/
@@ -13,10 +13,10 @@ __pycache__
 /debug/
 /coverage/
 /docs/
-/tmp
+tmp
 /.tmp
-/cache
-/.cache
+cache
+.cache
 
 # manager
 npm-debug.log
