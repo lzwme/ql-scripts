@@ -104,7 +104,7 @@ w2 restart
 - https://github.com/lzwme/whistle.x-scripts.git
 - https://github.com/lzwme/x-scripts-rules.git
 
-## 脚本列表(16)：
+## 脚本列表(17)：
 > 注意：本仓库脚本不支持单独订阅。可订阅仓库并禁用不需要的脚本。
 
 - [每日早报-60s读懂世界](./ql_60s.ts)
@@ -120,6 +120,7 @@ w2 restart
 - [[AnyRouter]NewAPI通用签到](./ql_newapi_signin.ts)
 - [ssone机场签到](./ql_ssone.ts)
 - [同花顺签到](./ql_thsSignIn.ts)
+- [Trae每日自动签到](./ql_trace_checkin.py)
 - [每日天气](./ql_weather.ts)
 - [WorkBuddy每日自动签到](./ql_workbuddy_daily.py)
 - [喜马拉雅签到](./ql_xmlySign.ts)
