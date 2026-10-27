@@ -68,7 +68,7 @@ Trae AutoCheckin · Trae 每日自动签到（抗 9074 限流版）
   TRAE_TOKEN_CACHE         token 缓存文件路径（可选，默认 /ql/data/config/ 或脚本同目录）
   TRAE_ACCOUNT_DIR         账号 JSON 所在目录（可选，用于回写轮换后的 refreshToken）
   QYWX_TOKEN               企业微信群机器人 Webhook key（可选，也兼容 WECHAT_WEBHOOK）
-  PLUSPLUS_TOKEN           PushPlus token（可选）
+  PLUSPLUS_TOKEN           PushPlus token（可选；兼容 PLUSHPLUS_TOKEN / PUSHPLUS_TOKEN）
 
   TRAE_ACCOUNTS 每个账号对象支持的字段：
     accessToken / refreshToken  明文 token（可只给 refreshToken，脚本自动换取）
@@ -121,12 +121,13 @@ RATE_HTTP_CODES = (429, 500, 502, 503, 504)
 RATE_CODE = 9074                            # 参与用户太多（排队限流，可重试）
 REQ_SOURCE = 1                              # 客户端签到请求体固定带 {"req_source":1}
 REQ_BODY = '{"req_source": %d}' % REQ_SOURCE
-ALREADY_CODE = 9095                         # 今日已签
+# 9004 / 9095 都表示「本设备今日已签到」，不是失败。
+ALREADY_CODES = (9004, 9095)
 QYWX_URL = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key='
 PUSHPLUS_URL = 'https://www.pushplus.plus/send'
 
 # 企业微信 / PushPlus 推送配置（留空则不推送）
-PLUSPLUS_TOKEN = os.getenv('PLUSPLUS_TOKEN', '')
+PLUSPLUS_TOKEN = (os.getenv('PLUSPLUS_TOKEN') or os.getenv('PLUSHPLUS_TOKEN') or os.getenv('PUSHPLUS_TOKEN') or '').strip()
 QYWX_TOKEN = os.getenv('QYWX_TOKEN') or os.getenv('WECHAT_WEBHOOK') or ''
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -738,12 +739,32 @@ def _jwt_uid(token):
 
 
 def _jwt_exp(token):
+    """读 JWT 到期（秒）：优先标准 exp，其次中国版自定义 TokenExpireAt / tokenExpireAt。
+
+    中国版的令牌把到期写在自定义声明里且可能是**字符串**（issue #263 实测），
+    旧的只看 exp 的读法会静默落 0 —— 缓存里的有效期与续期节奏一起坏。
+    声明值数字 / 字符串都认，秒与毫秒按量级归一；读不到返回 0。
+    """
     try:
         parts = token.split('.')
         pad = parts[1] + '=' * (-len(parts[1]) % 4)
-        return int(json.loads(base64.urlsafe_b64decode(pad)).get('exp', 0))
+        payload = json.loads(base64.urlsafe_b64decode(pad))
     except Exception:
         return 0
+    for claim in ('exp', 'TokenExpireAt', 'tokenExpireAt'):
+        raw = payload.get(claim)
+        if raw is None or raw == '':
+            continue
+        try:
+            value = float(str(raw).strip())
+        except Exception:
+            continue
+        if value <= 0:
+            continue
+        if value > 100000000000:      # 毫秒量级 → 秒
+            value = value / 1000.0
+        return int(value)
+    return 0
 
 
 def ensure_token(acc, cache):
@@ -915,6 +936,10 @@ def pick_batch(pending):
         return pending          # 默认一轮全签，9074 自动换号兜底
     if pending and in_peak_hour():
         return pending        # 早窗容量最松，一轮把剩下的全签掉（账号间照常错峰）
+    try:
+        size = max(1, int(raw))
+    except ValueError:
+        size = 1              # 非法值按 1 处理，不允许抛错打断整轮签到
     start = bj_now().tm_hour % max(1, len(pending))
     return (pending[start:] + pending[:start])[:size]
 
@@ -1077,7 +1102,7 @@ def status_of(token, device_id):
 
 
 def claim(token, device_id):
-    """签到领取积分一次，以业务 code 为准：0 成功 / 9095 今日已签 / 9074 限流可重试。
+    """签到领取积分一次，以业务 code 为准：0 成功 / 9004、9095 今日已签 / 9074 限流可重试。
     返回 (http, code, message, 本次积分)。"""
     status, text = _post(EP_CLAIM, ug_headers(token, device_id), REQ_BODY)
     try:
@@ -1106,7 +1131,7 @@ def claim_with_retry(acc, cache):
         last = (code, msg)
         if code == 0:
             return True, code, msg, points
-        if code == ALREADY_CODE:
+        if code in ALREADY_CODES:
             return False, code, msg, None
         if code in AUTH_FAIL_CODES and acc.get('refreshToken'):
             print('🔑 [claim] 检测到 code=%s，尝试刷新 token ...' % code)
@@ -1302,11 +1327,11 @@ def checkin_account(acc, cache):
             result['credits'] = credits_after if credits_after is not None else credits
             result['detail'] = '签到成功（已回查确认），积分 %s → %s' % (credits, _fmt(result['credits']))
         print('🎉 [结果] 签到成功（已回查确认）')
-    elif code == ALREADY_CODE:
+    elif code in ALREADY_CODES:
         result['icon'] = '☑️'
         result['status'] = '已签到'
         result['credits'] = credits
-        result['detail'] = '今日已签到(9095)'
+        result['detail'] = '今日已签到(%s)' % code
         print('☑️  [结果] 今日已签到')
     elif code == RATE_CODE:
         result['icon'] = '⏳'
