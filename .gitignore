@@ -17,6 +17,7 @@ tmp
 /.tmp
 cache
 .cache
+local
 
 # manager
 npm-debug.log
@@ -40,3 +41,6 @@ pnpm-lock.yaml
 
 .trae*
 /*.json
+
+/qoder_umid
+/qoder_machine_id
