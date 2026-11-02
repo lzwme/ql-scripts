@@ -6,6 +6,7 @@
  * @Description:
  */
 import { type AnyObject, Request, color } from '@lzwme/fe-utils';
+import 'dotenv/config';
 import { getCacheStorage, sendNotify } from './common';
 
 process.env.NODE_USE_ENV_PROXY = '1' // 允许解析 HTTP_PROXY 代理

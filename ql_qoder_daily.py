@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+try:
+    from utils import ql_env  # noqa: F401
+except Exception:
+    pass
 """
 @source: https://gh-proxy.org/github.com/L0NE-6/Qoder-Daily/raw/refs/heads/main/qoder_daily.py
 

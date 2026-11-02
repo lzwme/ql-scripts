@@ -30,6 +30,11 @@ import numpy as np
 import cv2
 from playwright.sync_api import sync_playwright
 
+try:
+    from utils import ql_env  # noqa: F401
+except Exception:
+    pass
+
 # ===================== 配置 =====================
 DEBUG_MODE = os.environ.get("DEBUG_MODE", "0").strip().lower() in ("1", "true", "yes")
 if DEBUG_MODE:

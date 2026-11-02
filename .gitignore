@@ -31,6 +31,8 @@ pnpm-lock.yaml
 /sendNotify.js
 
 # config
+.env
+.env.*
 /.flh.config.js
 /lzwme_ql_config.*
 

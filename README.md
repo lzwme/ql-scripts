@@ -17,7 +17,7 @@
 
 ```bash
 # ql repo <repo_url> <whitelist> <blacklist> <dependence> <branch> <extensions>
-ql repo https://github.com/lzwme/ql-scripts.git "ql_|ql-" "backup|todo|deprecated" "utils" "" "js ts"
+ql repo https://github.com/lzwme/ql-scripts.git "ql_|ql-" "backup|todo|deprecated" "utils" "" "js ts py"
 cd /ql/scripts
 pnpm add @lzwme/fe-utils commander enquirer moment json5 crypto-js axios
 ```
@@ -33,7 +33,7 @@ pnpm add @lzwme/fe-utils commander enquirer moment json5 crypto-js axios
 - 白名单：`ql_|ql-`
 - 黑名单：`backup|todo|deprecated`
 - 依赖文件：`utils`
-- 文件后缀：`js ts`
+- 文件后缀：`js ts py`
 
 依赖管理 -> `nodejs` 类型依赖添加：`@lzwme/fe-utils axios commander console-log-colors crypto-js enquirer json5 moment`
 
