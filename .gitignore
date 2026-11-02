@@ -26,6 +26,9 @@ yarn-error.log
 pnpm-lock.yaml
 .pnpm-debug.log
 
+# 青龙面板会复制一份到当前目录
+/sendNotify.js
+
 # config
 /.flh.config.js
 /lzwme_ql_config.*
@@ -35,6 +38,5 @@ pnpm-lock.yaml
 .cluade
 .cursor
 
-# 青龙面板会复制一份到当前目录
-/sendNotify.js
 .trae*
+/*.json
