@@ -1091,6 +1091,17 @@ def load_accounts():
 
 
 # ══════════════════ 签到接口 ══════════════════
+def reward_credits(payload):
+    """返回本次签到可展示的积分数：credits 优先，否则 extra_credits；两者不相加。"""
+    credits = payload.get('credits')
+    extra_credits = payload.get('extra_credits')
+    credits = credits if isinstance(credits, int) and not isinstance(credits, bool) else 0
+    extra_credits = extra_credits if isinstance(extra_credits, int) and not isinstance(extra_credits, bool) else 0
+    if credits > 0:
+        return credits
+    return extra_credits if extra_credits > 0 else 0
+
+
 def status_of(token, device_id):
     """返回 (checked_in, credits, enable, code, raw)；查询不通时前三项为 None。
     请求体必须带 req_source（客户端同款），空体会被服务端拒成 9074。"""
@@ -1102,7 +1113,7 @@ def status_of(token, device_id):
     code = d.get('code', -1)
     if status >= 400:
         return None, None, None, code, text
-    return (bool(d.get('checked_in', False)), d.get('credits', 0), d.get('enable', False), code, text)
+    return (bool(d.get('checked_in', False)), reward_credits(d), d.get('enable', False), code, text)
 
 
 def claim(token, device_id):

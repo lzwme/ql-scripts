@@ -238,7 +238,7 @@ def persist(account):
 
 # ---------- 设备风控身份（中国版 / 国际版签到依赖） ----------
 
-UMID_DIR = os.path.join(SCRIPT_DIR, "cache/qoder_umid")
+UMID_DIR = os.path.join(SCRIPT_DIR, "qoder_umid")
 MACHINE_ID_FILE = os.path.join(SCRIPT_DIR, "qoder_machine_id")
 RISK_TTL = 50 * 60
 DEFAULT_CLIENT_VERSION = "1.1.69"

@@ -141,3 +141,6 @@ w2 restart
 - [Whistle](https://github.com/avwo/whistle)
 - [Whistle.x-scripts](https://github.com/lzwme/whistle.x-scripts)
 - [x-scripts-rules](https://github.com/lzwme/x-scripts-rules)
+- [WorkBuddy Daily](github.com/L0NE-6/WorkBuddy-Daily)
+- [Trae AutoCheckin](github.com/L0NE-6/Trae-AutoCheckin)
+
