@@ -4,14 +4,14 @@
 
 用法（推荐，脚本顶部可选导入，import 时自动载入 .env；文件缺失/异常不影响脚本运行）：
     try:
-        from utils import ql_env  # noqa: F401  可选 .env 支持
+        from utils import qlenv  # noqa: F401  可选 .env 支持
     except Exception:
         pass
 
-若脚本与 ql_env.py 同目录（单独下载运行时），也可 `import ql_env`。
+若脚本与 qlenv.py 同目录（单独下载运行时），也可 `import qlenv`。
 
 也可手动控制：
-    from utils.ql_env import load_dotenv
+    from utils.qlenv import load_dotenv
     load_dotenv()                    # 默认不覆盖已存在的环境变量
     load_dotenv('/path/.env', override=True)
 
@@ -118,7 +118,7 @@ def load_dotenv(path=None, override=False, filename='.env'):
         with open(path, 'r', encoding='utf-8-sig') as f:
             envs = parse_env(f.read())
     except Exception as e:
-        print('[ql_env] 读取 %s 失败: %s' % (path, e), file=sys.stderr)
+        print('[qlenv] 读取 %s 失败: %s' % (path, e), file=sys.stderr)
         return {}
     injected = {}
     for k, v in envs.items():
@@ -137,7 +137,7 @@ if not os.environ.get('QL_ENV_DISABLED', '').strip() in ('1', 'true', 'yes'):
 
 if __name__ == '__main__':
     f = find_dotenv()
-    print('[ql_env] .env 路径:', f or '(未找到)')
+    print('[qlenv] .env 路径:', f or '(未找到)')
     if f:
         keys = sorted(parse_env(open(f, encoding='utf-8-sig').read()))
-        print('[ql_env] 共 %d 个配置项: %s' % (len(keys), ', '.join(keys) or '-'))
+        print('[qlenv] 共 %d 个配置项: %s' % (len(keys), ', '.join(keys) or '-'))

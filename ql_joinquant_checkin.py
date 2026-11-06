@@ -31,7 +31,7 @@ import cv2
 from playwright.sync_api import sync_playwright
 
 try:
-    from utils import ql_env  # noqa: F401
+    from utils import qlenv  # noqa: F401
 except Exception:
     pass
 

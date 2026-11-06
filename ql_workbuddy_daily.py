@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 try:
-    from utils import ql_env  # noqa: F401
+    from utils import qlenv  # noqa: F401
 except Exception:
     pass
 """
@@ -724,7 +724,7 @@ def _token_sanity(rt, at):
         if not tok:
             continue
         if "$wbEncrypted" in tok or '"envelope"' in tok:
-            tips.append("%s 是 WorkBuddy 5.6.2+ 的 AtRestEncryption 加密信封（不是明文 JWT）——密钥只驻留" 
+            tips.append("%s 是 WorkBuddy 5.6.2+ 的 AtRestEncryption 加密信封（不是明文 JWT）——密钥只驻留"
                         "客户端进程内存，无法直接使用；请用 python workbuddy_login.py（短信登录）获取明文凭据" % name)
             continue
         if not tok.startswith("eyJ") or tok.count(".") != 2:
@@ -5182,7 +5182,7 @@ def run_account(idx, acc, do_desktop):
     log("  ☁️ ── 云端任务 ──")
     if TASK_ONLY or TASK_SKIP:
         log("   ⚙️ 任务过滤生效：%s%s" % (
-            ("仅执行 " + ",".join(sorted(TASK_ONLY))) if TASK_ONLY else "", 
+            ("仅执行 " + ",".join(sorted(TASK_ONLY))) if TASK_ONLY else "",
             (("；跳过 " + ",".join(sorted(TASK_SKIP))) if TASK_SKIP else "")))
         # 「使用类」任务才会给成长中心记活跃（热力墙）。全被过滤掉时明确提醒：
         # 签到只给积分、不点热力墙——别把页面上的「开始使用以点亮今日热力墙」当成签到失败
