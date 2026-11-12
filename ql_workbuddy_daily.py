@@ -10,7 +10,7 @@ except Exception:
 cron: 10 7,12,23 * * *
 new Env('WorkBuddy每日自动签到')
 
-🌱 WorkBuddy Daily - 全能签到脚本 v3.39
+🌱 WorkBuddy Daily - 全能签到脚本 v3.43
 ════════════════════════════════════════════════════════════════
 
 📌 这是什么
@@ -47,6 +47,8 @@ new Env('WorkBuddy每日自动签到')
    python workbuddy_daily.py               全流程：续期 → 查询 → 任务 → 领奖
    python workbuddy_daily.py --refresh     仅刷新所有账号 Token
    python workbuddy_daily.py --query       仅查询积分/用量/成长
+   python workbuddy_daily.py --sign-retry-only
+                                           只处理已到点的签到补签，不跑完整任务
    python workbuddy_daily.py --no-desktop  跳过桌面任务（非 Windows 默认走指纹上报）
    python workbuddy_daily.py --only 3      只跑第 3 个账号
    python workbuddy_daily.py --gap 2.0     写动作间隔秒数（默认 1.5，最低 1.0）
@@ -87,6 +89,8 @@ new Env('WorkBuddy每日自动签到')
    WORKBUDDY_MAKEUP_MAX_PER_RUN
                              【可选】每轮最多补签几张（默认 1，最多 10）
    WORKBUDDY_BENEFIT_STATE   【可选】补偿/礼包本地期次防重文件路径
+   WORKBUDDY_SIGN_RETRY      【可选】签到瞬时失败补签状态文件路径
+                             （默认 workbuddy_sign_retry.json）
    WORKBUDDY_STATE_DIR       【可选】状态文件目录（令牌库 / AT 文本 / 补偿防重）
                              不设＝脚本同级目录（默认）；容器或脚本目录会被
                              重装/升级覆盖时建议指向持久目录
@@ -178,6 +182,8 @@ new Env('WorkBuddy每日自动签到')
    · locked 任务：任务行 locked=true（未到上线时间）直接跳过并给出解锁日，不空跑不误判
    · mp 对话 id：conversationId=UUID v4；requestId/traceId/rootRequestId=32 hex 毫秒前缀
    · 瞬时错误重试：每日签到/余额/用量对网络与 5xx 做 2s/4s 有界重试，业务错误不重试
+     仅签到 `HTTP 500 + code=10001 + 稍后重试` 会跨进程排队，从首次失败起
+     第 10/40 分钟由 `--sign-retry-only` 补跑；每次先查官方状态，已签即清队列
    · 凭据体检：续期前本地看 RT/AT 结构与签发域（typ=Offline / 国内 realm），
      把 12153 token format error 提前翻译成“粘反了 / 粘错了文件 / 截断了”
    · 微信关注任务：需真人扫码关注满 24 小时，脚本识别并提示，不自动完成
@@ -243,6 +249,7 @@ TASK_NAME_CN = {
     "Expert_team_use_3": "召唤3次专家团",
     "first_buddy": "领取Buddy",
     "chat_5": "和AI聊天5次",
+    "skill_share": "分享技能给好友",
     "skill_1": "尝鲜热门技能",
     "expert_5": "召唤5次专家",
     "template_5": "使用5个模板",
@@ -524,6 +531,8 @@ STATE_DIR = _state_dir()
 REFRESH_STORE = os.path.join(STATE_DIR, "wb_refresh_tokens.json")
 TOKEN_FILE = os.path.join(STATE_DIR, "WORKBUDDY_ACCESS_TOKEN.txt")
 BENEFIT_STATE_FILE = os.path.join(STATE_DIR, "workbuddy_benefit_state.json")
+SIGN_RETRY_FILE = os.path.join(STATE_DIR, "workbuddy_sign_retry.json")
+SIGN_RETRY_DELAYS = (10 * 60, 40 * 60)
 
 
 # 固定锁文件不可删除：所有进程必须锁住同一个文件，而不是原子替换的状态文件。
@@ -724,7 +733,7 @@ def _token_sanity(rt, at):
         if not tok:
             continue
         if "$wbEncrypted" in tok or '"envelope"' in tok:
-            tips.append("%s 是 WorkBuddy 5.6.2+ 的 AtRestEncryption 加密信封（不是明文 JWT）——密钥只驻留"
+            tips.append("%s 是 WorkBuddy 5.6.2+ 的 AtRestEncryption 加密信封（不是明文 JWT）——密钥只驻留" 
                         "客户端进程内存，无法直接使用；请用 python workbuddy_login.py（短信登录）获取明文凭据" % name)
             continue
         if not tok.startswith("eyJ") or tok.count(".") != 2:
@@ -1113,6 +1122,7 @@ MP_TARGET_WAIT_ROUNDS = 30
 MP_TARGET_WAIT_SECONDS = 2.5
 QUERY_ONLY = "--query" in sys.argv
 NO_DESKTOP = "--no-desktop" in sys.argv
+SIGN_RETRY_ONLY = "--sign-retry-only" in sys.argv
 if "--gap" in sys.argv:
     try:
         WRITE_GAP = max(1.0, float(sys.argv[sys.argv.index("--gap") + 1]))
@@ -1223,20 +1233,43 @@ def interpret_failure(st, r_json):
 
 
 def is_account_restricted(status_code, payload):
-    """WorkBuddy 账号级风控：11140 / request illegal，不得当成登录态过期。"""
-    code = payload.get("code") if isinstance(payload, dict) else None
-    blob = (
-        json.dumps(payload, ensure_ascii=False)
-        if isinstance(payload, (dict, list))
-        else str(payload or "")
-    ).lower()
-    if code in (11140, "11140"):
-        return True
-    markers = (
-        "11140", "account restricted", "request illegal",
-        "账号受限", "账号被限制", "账户受限",
+    """WorkBuddy 账号级风控：必须同时命中 11140 和明确的账号限制文案。
+
+    同一业务码也会承载模型级限流，且正文里可能只是在讨论这些关键词。这里只读
+    结构化错误字段，不扫描任意响应正文，避免把正文示例误判成账号受限。
+    """
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except (TypeError, ValueError):
+            return False
+    if not isinstance(payload, dict):
+        return False
+    code = payload.get("code")
+    if code not in (11140, "11140"):
+        return False
+    message = " ".join(
+        str(payload.get(key) or "")
+        for key in ("msg", "message", "displayMsg", "displayTips")
+    ).strip().lower()
+    if not message:
+        return False
+    rate_limit_markers = (
+        "rate-limiting", "rate limiting", "rate limit",
+        "too many requests", "usage limit", "请求过于频繁", "限流",
     )
-    return int(status_code or 0) == 403 and any(marker in blob for marker in markers)
+    if any(marker in message for marker in rate_limit_markers):
+        return False
+    restriction_markers = (
+        "request illegal",
+        "account restricted", "account is restricted",
+        "account has been restricted", "restricted account",
+        "account illegal", "unusual activity",
+        "账号受限", "账号被限制", "账号存在异常行为", "账号异常", "账号非法",
+        "账户受限", "账户被限制", "账户存在异常行为", "账户异常", "账户非法",
+        "已被限制使用",
+    )
+    return any(marker in message for marker in restriction_markers)
 
 
 def is_unapproved_channel(status_code, payload):
@@ -2268,45 +2301,206 @@ def t_daily_activity(s, uid, nick, log):
         log("   🔥每日活跃: 已上报")
 
 
-def t_sign(s, uid, nick, log, status_out=None):
+def _sign_retry_path():
+    return (os.environ.get("WORKBUDDY_SIGN_RETRY", "").strip()
+            or SIGN_RETRY_FILE)
+
+
+def _sign_retry_key(uid):
+    """用 UID 哈希隔离账号，状态文件不落手机号、UID 或凭据。"""
+    return hashlib.sha256(
+        ("workbuddy-sign-retry:%s" % str(uid or "")).encode("utf-8")
+    ).hexdigest()[:16]
+
+
+def _sign_retry_load():
+    path = _sign_retry_path()
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return path, data if isinstance(data, dict) else {}
+    except (OSError, ValueError, TypeError):
+        return path, {}
+
+
+def _sign_retry_save(path, data):
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp = "%s.tmp-%s" % (path, os.getpid())
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+def _sign_retry_record(uid, now=None):
+    """返回该账号当日补签记录及是否到点；跨日旧状态视为不存在。"""
+    _path, data = _sign_retry_load()
+    record = data.get(_sign_retry_key(uid))
+    if not isinstance(record, dict):
+        return None, False
+    today = beijing_today().isoformat()
+    if str(record.get("day") or "") != today:
+        return None, False
+    now = int(time.time() if now is None else now)
+    return dict(record), now >= _as_int(record.get("next_at"))
+
+
+def _schedule_sign_retry(uid, now=None):
+    """从首次失败时刻起排队 10/40 分钟两轮；第三轮失败即清空并标记耗尽。"""
+    path, data = _sign_retry_load()
+    today = beijing_today().isoformat()
+    data = {
+        key: value for key, value in data.items()
+        if isinstance(value, dict) and str(value.get("day") or "") == today
+    }
+    key = _sign_retry_key(uid)
+    record = data.get(key)
+    now = int(time.time() if now is None else now)
+    if not isinstance(record, dict):
+        record = {"day": today, "started_at": now, "round": 0}
+    round_index = _as_int(record.get("round"))
+    if round_index >= len(SIGN_RETRY_DELAYS):
+        data.pop(key, None)
+        _sign_retry_save(path, data)
+        return None, True
+    record["day"] = today
+    record["started_at"] = _as_int(record.get("started_at"), now)
+    record["round"] = round_index + 1
+    record["next_at"] = record["started_at"] + SIGN_RETRY_DELAYS[round_index]
+    record["last_failure_at"] = now
+    data[key] = record
+    _sign_retry_save(path, data)
+    return dict(record), False
+
+
+def _sign_retry_clear(uid):
+    path, data = _sign_retry_load()
+    key = _sign_retry_key(uid)
+    if key not in data:
+        return False
+    data.pop(key, None)
+    _sign_retry_save(path, data)
+    return True
+
+
+def _is_retryable_checkin_failure(status_code, payload):
+    """只认生产实测的 500 + code=10001 + 明确“稍后重试”。"""
+    if _as_int(status_code, -1) != 500 or not isinstance(payload, dict):
+        return False
+    if _as_int(payload.get("code"), -1) != 10001:
+        return False
+    message = str(payload.get("msg") or payload.get("message") or "")
+    return "稍后重试" in message
+
+
+def t_sign(s, uid, nick, log, status_out=None, retry_only=False):
     """每日签到 + 签到活动读数（连签天数 / 累计积分 / 连签奖励日）
 
     先查活动状态，确认在活动期且今天未签才 POST。daily-checkin 对瞬时错误
-    （网络/5xx）有界重试，但空 200、业务失败或没有 credit 的响应不再写成成功。
+    （网络/5xx）有界重试；credit_delayed=true 会明确记为待入账，不当领取失败。
+    只有 HTTP 500 + code=10001 + “稍后重试”进入跨进程补签队列；retry_only
+    只处理已到点的补签状态，不执行主动任务或每日活跃。
 
     `status_out` 为调用方传入的 dict，用于回传签到结论供通知策略判断：
       checked_in   True=今天确实已签（含幂等命中「今天已签到」）
     """
+    now = int(time.time())
+    retry_record, retry_due = _sign_retry_record(uid, now)
+    if retry_only and retry_record is None:
+        log("   ℹ️签到补签: 无待处理状态，跳过")
+        return
+    if retry_record is not None and not retry_due:
+        next_at = _as_int(retry_record.get("next_at"))
+        wait_minutes = max(1, int(math.ceil(max(0, next_at - now) / 60.0)))
+        log("   ⏳签到补签: 已排队，约 %d 分钟后到点" % wait_minutes)
+        if status_out is not None:
+            status_out["pending_retry"] = True
+            status_out["retry_at"] = next_at
+            status_out["retry_round"] = _as_int(retry_record.get("round"))
+        return
+    retry_attempt = retry_record is not None
+
+    def clear_retry_state():
+        if not retry_attempt:
+            return
+        try:
+            _sign_retry_clear(uid)
+        except Exception as exc:
+            log("   ⚠️签到补签状态清理失败: %s" % str(exc)[:60])
+
+    def after_sign():
+        if not retry_only:
+            t_daily_activity(s, uid, nick, log)
+
+    def handle_inconclusive_retry(reason):
+        """消费已到点的补签轮次，避免网络异常后每个 cron 重复请求。"""
+        if not retry_attempt:
+            return
+        try:
+            record, exhausted = _schedule_sign_retry(
+                uid, now=int(time.time()))
+        except Exception as exc:
+            log("   ❌签到补签%s，且状态落盘失败: %s" % (
+                reason, str(exc)[:60]))
+            return
+        if status_out is not None:
+            status_out["pending_retry"] = bool(record)
+            status_out["retry_exhausted"] = exhausted
+            if record:
+                status_out["retry_at"] = record.get("next_at")
+                status_out["retry_round"] = record.get("round")
+        if record:
+            log("   ⏳签到补签%s，已排下一轮" % reason)
+        else:
+            log("   ⚠️签到补签%s，两轮机会已用完" % reason)
+
     try:
         status_response = api_retry(
             s, "POST", BASE + "/v2/billing/meter/checkin-activity-status",
             body={}, retries=3, gap=2.0)
         status_payload = status_response.json() or {}
     except Exception as exc:
+        handle_inconclusive_retry("状态查询异常")
         log("   ❌签到状态查询失败（网络/5xx 重试后仍失败）: %s" % str(exc)[:60])
         return
     if is_enterprise_denial(status_response.status_code, status_payload):
+        clear_retry_state()
         log("   🏢 企业版账号：上游不支持签到与个人成长任务（本次跳过）")
         return
     if not (200 <= status_response.status_code < 300):
+        clear_retry_state()
         log("   ❌签到状态查询失败: HTTP %s" % status_response.status_code)
         return
     status_code = status_payload.get("code")
     if status_code is not None and not _api_code_ok(status_code):
+        clear_retry_state()
         log("   ❌签到状态查询失败: %s" % str(
             status_payload.get("msg") or "code %s" % status_code)[:60])
         return
     status_data = status_payload.get("data") or {}
     if status_data.get("active") is False:
         name = str(status_data.get("activity_name") or "").strip()
+        clear_retry_state()
         log("   ℹ️签到活动未开启%s" % ("（%s）" % name if name else ""))
-        t_daily_activity(s, uid, nick, log)
+        after_sign()
         return
     if status_data.get("today_checked_in") in (True, 1):
+        clear_retry_state()
         log("   ✅签到: 今天已签到%s" % _checkin_tail(s))
         if status_out is not None:
             status_out["checked_in"] = True
-        t_daily_activity(s, uid, nick, log)
+        after_sign()
         return
 
     try:
@@ -2315,49 +2509,82 @@ def t_sign(s, uid, nick, log, status_out=None):
             body={}, retries=3, gap=2.0)
         claim_payload = claim_response.json() or {}
     except Exception as exc:
+        handle_inconclusive_retry("领取请求异常")
         log("   ❌签到请求失败（网络/5xx 重试后仍失败）: %s" % str(exc)[:60])
         return
     if is_enterprise_denial(claim_response.status_code, claim_payload):
+        clear_retry_state()
         log("   🏢 企业版账号：上游不支持签到与个人成长任务（本次跳过）")
         return
+    if _is_retryable_checkin_failure(
+            claim_response.status_code, claim_payload):
+        try:
+            record, exhausted = _schedule_sign_retry(
+                uid, now=int(time.time()))
+        except Exception as exc:
+            log("   ❌签到瞬时失败，且补签状态落盘失败: %s" % str(exc)[:60])
+            return
+        if status_out is not None:
+            status_out["pending_retry"] = bool(record)
+            status_out["retry_exhausted"] = exhausted
+            if record:
+                status_out["retry_at"] = record.get("next_at")
+                status_out["retry_round"] = record.get("round")
+        if record:
+            log("   ⏳签到瞬时失败（500/10001），已排第 %s 轮补签" % (
+                record.get("round")))
+        else:
+            log("   ⚠️签到两轮补签均遇瞬时失败，今日补签队列已结束")
+        return
     if not (200 <= claim_response.status_code < 300):
+        clear_retry_state()
         log("   ❌签到失败: HTTP %s" % claim_response.status_code)
         return
     claim_code = claim_payload.get("code")
     claim_data = claim_payload.get("data") or {}
     message = str(claim_payload.get("msg") or "").strip()
     message_lower = message.lower()
-    if _api_code_ok(claim_code) and claim_data.get("credit") is not None:
+    credit = claim_data.get("credit")
+    credit_delayed = claim_data.get("credit_delayed") is True
+    if _api_code_ok(claim_code) and (credit is not None or credit_delayed):
         fresh = _checkin_status(s)
         pending = fresh and fresh.get("today_checked_in") not in (True, 1)
-        log("   ✅签到成功 +%s积分%s%s" % (
-            claim_data.get("credit"), _checkin_tail(s),
+        if credit is not None:
+            reward_text = "+%s积分" % credit
+        else:
+            reward_text = "积分待入账（credit_delayed=true）"
+        log("   ✅签到成功 %s%s%s" % (
+            reward_text, _checkin_tail(s),
             "（状态稍后刷新）" if pending else ""))
+        clear_retry_state()
         if status_out is not None:
             status_out["checked_in"] = True
-        t_daily_activity(s, uid, nick, log)
+        after_sign()
         return
     if _api_code_ok(claim_code) and any(
             marker in message_lower for marker in ("已签到", "已领取", "already")):
+        clear_retry_state()
         log("   ✅签到: %s%s" % (message, _checkin_tail(s)))
         if status_out is not None:
             status_out["checked_in"] = True
-        t_daily_activity(s, uid, nick, log)
+        after_sign()
         return
     if claim_code in (10001, "10001"):
+        clear_retry_state()
         fresh = _checkin_status(s)
         if fresh.get("today_checked_in") in (True, 1):
             log("   ✅签到: 状态回读确认今日已签%s" % _checkin_tail(s))
             if status_out is not None:
                 status_out["checked_in"] = True
-            t_daily_activity(s, uid, nick, log)
+            after_sign()
             return
         log("   ❌签到未确认: code 10001 但状态未显示今日已签 %s" % message[:60])
-        t_daily_activity(s, uid, nick, log)
+        after_sign()
         return
+    clear_retry_state()
     log("   ❌签到未确认: %s" % (
         message or ("code %s，回执缺少 credit" % claim_code))[:80])
-    t_daily_activity(s, uid, nick, log)
+    after_sign()
 
 
 def t_accept_all(s, uid, nick, log, rows=None, done_codes=None):
@@ -2821,15 +3048,19 @@ def t_lottery(s, uid, nick, log):
         log("   🎰抽奖异常: %s" % str(e)[:50])
 
 
-def t_blindbox(s, uid, nick, log):
-    """盲盒：能量足够就开（每次10能量，最多开5次）"""
+def t_blindbox(s, uid, nick, log, travel_state=None):
+    """盲盒：仅在旅行状态已确认 idle 时开（每次10能量，最多5次）。"""
+    state = (travel_state or {}).get("state") if isinstance(travel_state, dict) else ""
+    if state != "idle":
+        log("   📦盲盒: 旅行状态%s，跳过" % (state or "未知"))
+        return 0
     try:
         q = s.get(BASE + "/v2/activity/growth/buddy/quota", timeout=20, verify=False).json()
         qd = q.get("data", {})
         affordable = qd.get("affordable", 0)
         if not affordable or affordable <= 0:
             log("   📦盲盒: 能量不足 (%s/10)" % qd.get("balance", "?"))
-            return
+            return 0
         n = min(affordable, 5)
         got = []
         for _ in range(n):
@@ -2844,8 +3075,10 @@ def t_blindbox(s, uid, nick, log):
                 break
             time.sleep(1.5)
         log("   📦盲盒: %s" % ("、".join(got) if got else "开启失败"))
+        return len(got)
     except Exception as e:
         log("   📦盲盒异常: %s" % str(e)[:50])
+        return 0
 
 
 def t_buddy_info(s, uid, nick, log):
@@ -2860,26 +3093,43 @@ def t_buddy_info(s, uid, nick, log):
         pass
 
 
-def t_travel(s, uid, nick, log):
-    """派猫猫旅行：到达领礼物 / 旅行中等待 / 空闲出发（幂等状态机）"""
+def _read_travel_status(s, log):
+    """读取并校验旅行状态；未知状态返回 None，调用方不得继续开盒或派出。"""
+    st = s.get(BASE + "/v2/activity/growth/buddy/travel/status",
+               timeout=20, verify=False).json()
+    if not _api_code_ok(st.get("code")):
+        log("   🐾旅行: 状态获取失败")
+        return None
+    data = st.get("data") or {}
+    state = str(data.get("state") or "").strip().lower()
+    if state not in ("idle", "traveling", "arrived"):
+        log("   🐾旅行: 状态无法识别(%s)，跳过盲盒与派出" % (state or "空"))
+        return None
+    return data, state
+
+
+def _travel_observe(s, uid, nick, log, claim_arrived):
+    """读取旅行状态；启用旅行时领取 arrived 礼物并回读确认 idle。"""
     try:
         vis = s.get(BASE + "/v2/activity/growth/buddy/visible", timeout=20, verify=False).json()
         if _api_code_ok(vis.get("code")):
-            vd = vis.get("data", {})
+            vd = vis.get("data") or {}
             if not vd.get("buddy_visible", True) or not vd.get("has_buddy", True):
-                log("   🐾旅行: 无Buddy，跳过")
-                return
-        st = s.get(BASE + "/v2/activity/growth/buddy/travel/status", timeout=20, verify=False).json()
-        if not _api_code_ok(st.get("code")):
-            log("   🐾旅行: 状态获取失败")
-            return
-        sd = st.get("data", {})
-        state = sd.get("state", "idle")
+                log("   🐾旅行: 无Buddy，跳过盲盒与派出")
+                return {"state": "no_buddy"}
+        observed = _read_travel_status(s, log)
+        if observed is None:
+            return None
+        sd, state = observed
         if state == "arrived":
+            if not claim_arrived:
+                log("   🐾旅行: 已到达但礼物尚未领取，跳过盲盒")
+                return {"state": "arrived", "daily_limit_reached": bool(
+                    sd.get("daily_limit_reached"))}
             record_id = sd.get("record_id")
             if record_id in (None, "", 0):
                 log("   🐾旅行: 已到达但状态缺少 record_id，本轮不领奖也不重新派出")
-                return
+                return None
             claim_response = s.post(
                 BASE + "/v2/activity/growth/buddy/travel/claim",
                 json={"record_id": record_id}, timeout=20, verify=False)
@@ -2895,28 +3145,81 @@ def t_travel(s, uid, nick, log):
             else:
                 log("   🐾旅行: 领取未确认 %s" % str(
                     rr.get("msg") or "HTTP %s" % claim_response.status_code)[:60])
-                return
+                return None
+            observed = _read_travel_status(s, log)
+            if observed is None:
+                return None
+            sd, state = observed
+            if state != "idle":
+                log("   🐾旅行: 领取后状态仍为 %s，跳过盲盒与派出" % state)
+                return {"state": state, "daily_limit_reached": bool(
+                    sd.get("daily_limit_reached"))}
         if state == "traveling":
             remain = max(0, (sd.get("arrive_at", 0) - sd.get("server_now", 0)) // 60)
             log("   🐾旅行: 旅行中，约%s分钟后到达" % remain)
-            return
-        if sd.get("daily_limit_reached"):
-            log("   🐾旅行: 今日次数已用尽")
-            return
+            return {"state": "traveling"}
+        return {"state": "idle",
+                "daily_limit_reached": bool(sd.get("daily_limit_reached"))}
+    except Exception as e:
+        log("   🐾旅行异常: %s" % str(e)[:50])
+        return None
+
+
+def t_travel_prepare(s, uid, nick, log):
+    """旅行前置：处理 arrived 礼物，并仅在回读确认 idle 后允许开盒/派出。"""
+    return _travel_observe(s, uid, nick, log, claim_arrived=True)
+
+
+def t_travel_probe(s, uid, nick, log):
+    """旅行禁用但盲盒启用时，只读探测；arrived 不领奖且不允许开盒。"""
+    return _travel_observe(s, uid, nick, log, claim_arrived=False)
+
+
+def t_travel_depart(s, uid, nick, log, travel_state=None):
+    """在旅行状态已确认 idle 且今日次数未用尽时派出。"""
+    if (not isinstance(travel_state, dict)
+            or travel_state.get("state") != "idle"):
+        return False
+    if travel_state.get("daily_limit_reached"):
+        log("   🐾旅行: 今日次数已用尽")
+        return False
+    try:
         cfg = s.get(BASE + "/v2/activity/growth/buddy/travel/config", timeout=20, verify=False).json()
-        locs = cfg.get("data", {}).get("locations", [])
+        locs = (cfg.get("data") or {}).get("locations", [])
         if not locs:
             log("   🐾旅行: 无目的地")
-            return
+            return False
         rr = s.post(BASE + "/v2/activity/growth/buddy/travel/depart",
                     json={"location_id": locs[0].get("id")}, timeout=20, verify=False).json()
         if rr.get("code") == 0:
             remain = max(0, (rr.get("data", {}).get("arrive_at", 0) - rr.get("data", {}).get("server_now", 0)) // 3600)
             log("   🐾旅行: ✅已出发，约%s小时后到达（下次运行自动领取）" % remain)
+            return True
         else:
             log("   🐾旅行: 出发失败 %s" % str(rr.get("msg", ""))[:40])
+            return False
     except Exception as e:
         log("   🐾旅行异常: %s" % str(e)[:50])
+        return False
+
+
+def t_travel(s, uid, nick, log):
+    """兼容旧调用：完成旅行前置后，满足条件时直接派出。"""
+    travel_state = t_travel_prepare(s, uid, nick, log)
+    return t_travel_depart(s, uid, nick, log, travel_state=travel_state)
+
+
+def t_travel_blindbox_cycle(s, uid, nick, log, do_travel=True, do_blindbox=True):
+    """固定顺序：旅行礼物/状态 → 盲盒 → 旅行派出。"""
+    travel_state = (
+        t_travel_prepare(s, uid, nick, log)
+        if do_travel else t_travel_probe(s, uid, nick, log)
+    )
+    if do_blindbox:
+        t_blindbox(s, uid, nick, log, travel_state=travel_state)
+    if do_travel:
+        t_travel_depart(s, uid, nick, log, travel_state=travel_state)
+    return travel_state
 
 
 def t_redeem(s, uid, nick, log, streak_days=None):
@@ -5182,7 +5485,7 @@ def run_account(idx, acc, do_desktop):
     log("  ☁️ ── 云端任务 ──")
     if TASK_ONLY or TASK_SKIP:
         log("   ⚙️ 任务过滤生效：%s%s" % (
-            ("仅执行 " + ",".join(sorted(TASK_ONLY))) if TASK_ONLY else "",
+            ("仅执行 " + ",".join(sorted(TASK_ONLY))) if TASK_ONLY else "", 
             (("；跳过 " + ",".join(sorted(TASK_SKIP))) if TASK_SKIP else "")))
         # 「使用类」任务才会给成长中心记活跃（热力墙）。全被过滤掉时明确提醒：
         # 签到只给积分、不点热力墙——别把页面上的「开始使用以点亮今日热力墙」当成签到失败
@@ -5251,9 +5554,18 @@ def run_account(idx, acc, do_desktop):
     # 否则今天任务发的能量要等到下一轮才可见（盲盒会误报能量不足）。
     claim_ready_tasks(s, log)
     _run("徽章", ["badges"], lambda: t_badges(s, uid, nick, log))
-    _run("盲盒", ["blindbox"], lambda: t_blindbox(s, uid, nick, log))
     _run("Buddy 信息", ["buddy_info"], lambda: t_buddy_info(s, uid, nick, log))
-    _run("派猫猫旅行", ["travel"], lambda: t_travel(s, uid, nick, log))
+    if want("travel") or want("blindbox"):
+        try:
+            t_travel_blindbox_cycle(
+                s, uid, nick, log,
+                do_travel=want("travel"), do_blindbox=want("blindbox"))
+        except Exception as e:
+            log("   ⚠️旅行/盲盒异常: %s" % str(e)[:80])
+        if REPORT_GAP > 0:
+            time.sleep(REPORT_GAP)
+    else:
+        log("   ⏭️ 旅行/盲盒: 按配置跳过")
     streak_days_for_redeem = streak.get("days")
     makeup_days = _run("补签", ["makeup"], lambda: t_makeup(s, uid, nick, log))
     if makeup_days is not None:
@@ -5640,6 +5952,48 @@ def send_notify_all(title, content):
     return any(results)
 
 
+def run_sign_retry_only():
+    """外部 cron 专用：只处理到点的签到补签状态，不执行完整任务套件。"""
+    print("╔════════════════════════════════════════╗")
+    print("║ ⏳ WorkBuddy 签到补签                  ║")
+    print("╚════════════════════════════════════════╝")
+    print("👥 待检查账号数: %d" % len(ACCOUNTS))
+    processed = 0
+    for idx, acc in enumerate(ACCOUNTS, 1):
+        tag = "账号%d" % idx
+        tok = acc.get("access_token", "")
+        if not tok:
+            print("[%s][%s] ❌ AT 为空，跳过" % (time.strftime("%H:%M:%S"), tag))
+            continue
+        uid = uid_of(tok)
+        record, due = _sign_retry_record(uid)
+        if record is None:
+            continue
+        if not due:
+            continue
+
+        def log(message, _tag=tag):
+            print("[%s][%s] %s" % (
+                time.strftime("%H:%M:%S"), _tag, message))
+
+        state = {}
+        processed += 1
+        try:
+            t_sign(
+                new_api(tok), uid, nickname_of(tok), log, state,
+                retry_only=True)
+        except Exception as exc:
+            log("❌补签异常: %s" % str(exc)[:100])
+            continue
+        if state.get("checked_in"):
+            log("✅补签完成")
+        elif state.get("retry_exhausted"):
+            log("⚠️今日补签队列已耗尽")
+        elif state.get("pending_retry"):
+            log("⏳仍待下一轮补签")
+    print("🏁 本次补签检查完成，触发账号数: %d" % processed)
+
+
 def main():
     if "--refresh" in sys.argv:
         print("╔═══════════════════════════════════╗")
@@ -5651,6 +6005,9 @@ def main():
         else:
             print("⚠️ 无账号续期（检查 wb_refresh_tokens.json 是否存在）")
         print("📄 WORKBUDDY_ACCESS_TOKEN.txt 已同步更新")
+        return
+    if SIGN_RETRY_ONLY:
+        run_sign_retry_only()
         return
     print("╔════════════════════════════════════════╗")
     print("║ 🌱 WorkBuddy 全能脚本                  ║")
