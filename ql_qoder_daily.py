@@ -1227,12 +1227,22 @@ def do_checkin(account):
     if not campaign_id:
         return False, "活动数据里没有 campaignId，无法领取"
 
+    try:
+        before = quota_total_remaining(account)
+    except Exception:
+        before = None
     claim = claim_campaign(account, campaign_id)
     verdict, amount, verdict_message = claim_response_verdict(claim)
     if verdict == "already":
         return False, "今日已领取"
     if verdict != "claimed":
         return False, "领取失败：%s" % verdict_message
+
+    time.sleep(2)
+    try:
+        after = quota_total_remaining(account)
+    except Exception:
+        after = None
 
     if amount <= 0:
         _kind, amount = campaign_benefit(target)
@@ -1243,15 +1253,24 @@ def do_checkin(account):
     validity = benefit.get("validity") if isinstance(benefit.get("validity"), dict) else {}
     if validity.get("days") is not None:
         days = validity.get("days")
-    if amount > 0:
-        text = "获得 %s credits" % int(amount)
+    delta = None
+    if before is not None and after is not None:
+        delta = after - before
+    if delta is not None and delta > 0:
+        text = "签到成功，额度回读 +%d（%d → %d）" % (
+            int(delta), int(before), int(after))
+    elif delta is not None:
+        text = "签到已受理，额度回读待确认（%d → %d）" % (
+            int(before), int(after))
+    elif amount > 0:
+        text = "签到已受理，额度到账待确认（活动面值 %d credits，回读暂不可用）" % int(amount)
     elif verdict_message.startswith("已领取兑换券"):
-        text = verdict_message
+        text = "签到已受理，%s；到账待确认" % verdict_message
     else:
-        text = "领取已确认，积分回读稍后刷新"
+        text = "签到已受理，积分到账待回读确认"
     if days:
         text += "，%s 天有效" % days
-    return True, text
+    return (delta is not None and delta > 0), text
 
 
 def discover_pro_campaign(account, rows):

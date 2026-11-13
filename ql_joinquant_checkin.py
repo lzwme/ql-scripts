@@ -21,6 +21,7 @@ new Env('聚宽社区每日签到')
   BROWSER_CDP_WAIT_SEC=cdp等待时间，默认 20 秒
   BROWSER_CDP_LAUNCH_RETRIES=cdp启动重试次数，默认 4 次
   BROWSER_CHROMIUM_ARGS=额外启动参数，空格分隔，追加在默认参数之后 # 可选
+  BROWSER_USE_CDP_PROFILE=0 # 可选，关闭 CDP 专用 profile，改用浏览器默认配置以复用已有登录态（默认 1）
   IN_DOCKER=1 # 是否在docker容器中运行，可选，默认自动识别
   DEBUG_MODE=1 # 可选，开启后写入调试日志、全流程页面截图与验证码调试图（默认关闭不落盘图片）
 """
@@ -46,10 +47,15 @@ except ValueError:
 CDP_URL = f"http://localhost:{CDP_PORT}"
 CAPTCHA_MAX_RETRIES = 3
 MANUAL_CAPTCHA_TIMEOUT = 60
+MANUAL_LOGIN_WAIT_SEC = 60
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(
-    os.path.dirname(__file__),
+    LOG_DIR,
     "joinquant_checkin_log_debug.log" if DEBUG_MODE else "joinquant_checkin_log.log",
 )
+# CDP 专用 profile 开关：关闭时不传 --user-data-dir，使用浏览器默认配置以复用已有登录态
+USE_CDP_PROFILE = (os.environ.get("BROWSER_USE_CDP_PROFILE") or "1").strip().lower() in ("1", "true", "yes")
 # 青龙 / Docker：CDP 专用 profile 目录名（用于 pgrep 精确匹配本脚本启动的浏览器）
 JOINQUANT_PROFILE_ROOT = "JoinQuantCDP"
 
@@ -234,6 +240,10 @@ if _env_warning:
     BROWSER_EXE, BROWSER_NAME, BROWSER_USER_DATA_DIR = detect_browser()
     _used_env_browser = False
 
+if not USE_CDP_PROFILE:
+    # 关闭专用 profile：不使用任何 user-data-dir，让浏览器使用默认配置
+    BROWSER_USER_DATA_DIR = None
+
 def log(msg):
     line = f"[{time.strftime('%H:%M:%S')}] {msg}"
     print(line, flush=True)
@@ -270,7 +280,10 @@ def _windows_process_image_name():
     return "msedge.exe" if BROWSER_NAME == "Edge" else "chrome.exe"
 
 def get_browser_main_pids():
-    """获取与本脚本 user-data-dir 相关的浏览器主进程（尽量排除 renderer）。"""
+    """获取与本脚本 user-data-dir 相关的浏览器主进程（尽量排除 renderer）。
+
+    默认 profile 模式下仅识别带 CDP 端口的进程，避免匹配到用户日常浏览器。
+    """
     if IS_WINDOWS:
         exe_name = _windows_process_image_name()
         try:
@@ -290,7 +303,10 @@ def get_browser_main_pids():
                             capture_output=True, text=True, timeout=3
                         )
                         cmd = cmd_result.stdout.strip()
-                        if ud and ud.lower() not in cmd.lower():
+                        if ud:
+                            if ud.lower() not in cmd.lower():
+                                continue
+                        elif f"--remote-debugging-port={CDP_PORT}" not in cmd:
                             continue
                         if "--type=" not in cmd:
                             main_pids.append((pid, cmd))
@@ -346,6 +362,8 @@ def browser_has_cdp_flag(pid):
 
 def kill_browser_without_cdp():
     """结束使用本脚本 profile、但未带 CDP 端口的浏览器进程。"""
+    if not USE_CDP_PROFILE:
+        return
     if IS_WINDOWS:
         exe_name = _windows_process_image_name()
         try:
@@ -405,6 +423,9 @@ def kill_browser_without_cdp():
 
 def kill_all_profile_browser_processes():
     """结束所有使用本脚本 user-data-dir 的浏览器进程（含已开 CDP），用于端口未就绪时强制重启。"""
+    if not USE_CDP_PROFILE:
+        log("  ⚠️ 使用浏览器默认 profile，跳过强制结束浏览器进程（避免影响用户浏览器）")
+        return
     if IS_WINDOWS:
         exe_name = _windows_process_image_name()
         ud = _resolved_user_data_dir()
@@ -455,14 +476,17 @@ def kill_all_profile_browser_processes():
     except Exception:
         pass
 
-def _chromium_launch_args(user_data_dir: str):
+def _chromium_launch_args(user_data_dir=None):
     args = [
         BROWSER_EXE,
         f"--remote-debugging-port={CDP_PORT}",
-        f"--user-data-dir={user_data_dir}",
+    ]
+    if user_data_dir:
+        args.append(f"--user-data-dir={user_data_dir}")
+    args.extend([
         "--no-first-run",
         "--no-default-browser-check",
-    ]
+    ])
     if _is_docker_like():
         args.extend([
             "--no-sandbox",
@@ -477,7 +501,8 @@ def _chromium_launch_args(user_data_dir: str):
 def launch_browser_with_cdp():
     """
     启动 Chromium 系浏览器并开放 CDP。
-    若端口未就绪：关闭本脚本 profile 下相关进程后重试，直至连上或达到次数上限。
+    专用 profile 模式下若端口未就绪：关闭该 profile 下相关进程后重试，直至连上或达到次数上限。
+    默认 profile 模式下不传 --user-data-dir，且不会强制结束浏览器进程。
     """
     if not BROWSER_EXE or not BROWSER_NAME:
         log("❌ 未检测到可用的 Chromium 内核浏览器")
@@ -494,14 +519,19 @@ def launch_browser_with_cdp():
         log(f"检测到 CDP 端口 {CDP_PORT} 已开放，直接连接")
         return True
 
-    user_data_dir = BROWSER_USER_DATA_DIR or default_joinquant_user_data(
-        "Edge" if BROWSER_NAME == "Edge" else "Chrome"
-    )
-    try:
-        user_data_dir = str(pathlib.Path(user_data_dir).expanduser().resolve())
-    except Exception:
-        user_data_dir = str(pathlib.Path(user_data_dir).expanduser())
-    os.makedirs(user_data_dir, exist_ok=True)
+    if USE_CDP_PROFILE:
+        user_data_dir = BROWSER_USER_DATA_DIR or default_joinquant_user_data(
+            "Edge" if BROWSER_NAME == "Edge" else "Chrome"
+        )
+        try:
+            user_data_dir = str(pathlib.Path(user_data_dir).expanduser().resolve())
+        except Exception:
+            user_data_dir = str(pathlib.Path(user_data_dir).expanduser())
+        os.makedirs(user_data_dir, exist_ok=True)
+        log(f"使用 CDP 专用 profile: {user_data_dir}")
+    else:
+        user_data_dir = None
+        log("CDP 专用 profile 已关闭，使用浏览器默认 profile（复用已有登录态）")
 
     for round_i in range(1, max_rounds + 1):
         if is_cdp_available():
@@ -520,7 +550,7 @@ def launch_browser_with_cdp():
                     return True
             log("等待 CDP 端口仍不可用，将结束相关进程并重新启动浏览器")
 
-        if main_pids:
+        if main_pids and USE_CDP_PROFILE:
             log(f"第 {round_i}/{max_rounds} 轮：清理未就绪的浏览器进程后重试...")
             kill_all_profile_browser_processes()
             time.sleep(2)
@@ -553,6 +583,8 @@ def launch_browser_with_cdp():
         time.sleep(2)
 
     log(f"❌ 经过 {max_rounds} 轮仍无法使 CDP 端口 {CDP_PORT} 就绪")
+    if not USE_CDP_PROFILE:
+        log("  提示：默认 profile 已被运行中的浏览器占用，或部分新版浏览器禁止在默认 profile 上开启远程调试时，CDP 端口不可用；可手动以 --remote-debugging-port 启动浏览器，或设 BROWSER_USE_CDP_PROFILE=1")
     return False
 
 def screenshot(page, name):
@@ -1051,6 +1083,27 @@ def get_current_user(page):
         pass
     return None
 
+def wait_for_manual_login(page, timeout=MANUAL_LOGIN_WAIT_SEC):
+    """登录失败后留出时间供用户在浏览器窗口中手动登录，等待结束重新确认登录账号。"""
+    log(f"  ⏳ 等待 {timeout} 秒，请在脚本打开的浏览器窗口中手动登录...")
+    time.sleep(timeout)
+    current_user = get_current_user(page)
+    if current_user:
+        log(f"  ✅ 检测到手动登录用户: {current_user}")
+    else:
+        log("  ❌ 等待结束仍未获取到当前登录用户")
+    return current_user
+
+def clear_login_cookies(context):
+    """清理登录态：默认 profile 下只清聚宽 cookie，避免清空用户其它站点登录态。"""
+    if USE_CDP_PROFILE:
+        context.clear_cookies()
+        return
+    try:
+        context.clear_cookies(domain=re.compile(r"joinquant\.com$"))
+    except Exception:
+        log("  ⚠️ 无法按域名清理 cookie，已跳过（避免影响默认 profile 其它站点登录态）")
+
 def logout(page):
     """退出当前登录，为切换账号做准备。"""
     log("  退出登录...")
@@ -1063,13 +1116,12 @@ def logout(page):
             log("  ✅ 已退出登录")
             return True
         log("  ⚠️ 登出后仍检测到登录态，尝试清除 cookies")
-        context = page.context
-        context.clear_cookies()
+        clear_login_cookies(page.context)
         time.sleep(1)
     except Exception as e:
         log(f"  ⚠️ 退出登录异常: {e}")
         try:
-            page.context.clear_cookies()
+            clear_login_cookies(page.context)
         except Exception:
             pass
     return True
@@ -1078,7 +1130,7 @@ def ensure_login(page, username, password):
     """检测登录状态：先识别当前账号，匹配则跳过，否则退出后重新登录"""
     if not username or not password:
         log("❌ 用户名/密码为空")
-        return False
+        return wait_for_manual_login(page) is not None
 
     current_user = get_current_user(page)
     if current_user:
@@ -1126,7 +1178,7 @@ def ensure_login(page, username, password):
             page.evaluate("() => document.querySelector('button.login-submit')?.click()")
     except Exception as e:
         log(f"  点击登录按钮失败: {e}")
-        return False
+        return wait_for_manual_login(page) is not None
 
     time.sleep(3)
 
@@ -1139,17 +1191,21 @@ def ensure_login(page, username, password):
                 log("  ⚠️ 登录验证码自动处理失败，等待人工处理")
                 if not wait_for_captcha_manual(page, context="登录验证", timeout=MANUAL_CAPTCHA_TIMEOUT):
                     log("  ❌ 登录验证码未通过")
-                    return False
+                    return wait_for_manual_login(page) is not None
             time.sleep(1)
     except Exception:
         pass
 
-    # 检查是否登录成功
-    if not is_logged_in(page):
-        log("❌ 登录失败")
-        return False
-
-    log("✅ 登录成功")
+    # 检查是否登录成功：以获取到的当前登录用户为准
+    current_user = get_current_user(page)
+    if not current_user:
+        log("❌ 登录失败（未获取到当前登录用户）")
+        current_user = wait_for_manual_login(page)
+        if not current_user:
+            return False
+    if current_user != username:
+        log(f"  ⚠️ 当前登录账号（{current_user}）与目标账号（{username}）不一致")
+    log(f"✅ 登录成功，当前用户: {current_user}")
     return True
 
 def read_article(page):
@@ -1432,6 +1488,33 @@ def do_checkin(page):
 
     return checkin_ok
 
+def new_browser_session(browser):
+    """创建页面：专用 profile 用独立 context 隔离会话；默认 profile 复用默认 context 保留登录态。"""
+    if USE_CDP_PROFILE:
+        context = browser.new_context()
+        owns_context = True
+    elif browser.contexts:
+        context = browser.contexts[0]
+        owns_context = False
+    else:
+        context = browser.new_context()
+        owns_context = True
+    page = context.new_page()
+    page.set_default_timeout(30000)
+    return page, context, owns_context
+
+def close_browser_session(page, context, owns_context):
+    """仅关闭脚本创建的页面；独立 context 才一并关闭，避免破坏默认 profile 会话。"""
+    try:
+        page.close()
+    except Exception:
+        pass
+    if owns_context:
+        try:
+            context.close()
+        except Exception:
+            pass
+
 def run_checkin():
     global _used_env_browser, _env_warning
 
@@ -1464,6 +1547,7 @@ def run_checkin():
         log("❌ 未检测到可用的 Chromium 内核浏览器（可设置 BROWSER_CHROMIUM_EXE）")
         sys.exit(1)
 
+    log(f"浏览器 profile 模式: {'CDP 专用（独立会话）' if USE_CDP_PROFILE else '默认（复用已有登录态）'}")
     if not launch_browser_with_cdp():
         log(f"❌ 无法启动/连接带 CDP 端口的 {BROWSER_NAME}")
         sys.exit(1)
@@ -1484,10 +1568,8 @@ def run_checkin():
             log(f"==================== 账号 [{acc_idx+1}/{len(accounts)}] {username} ====================")
 
             try:
-                # 每个账号使用独立的 browser context，隔离 cookie/localStorage
-                context = browser.new_context()
-                page = context.new_page()
-                page.set_default_timeout(30000)
+                # 专用 profile 每个账号独立 context 隔离会话；默认 profile 复用默认 context 保留登录态
+                page, context, owns_context = new_browser_session(browser)
 
                 # 安装 XHR 拦截器
                 try:
@@ -1500,7 +1582,7 @@ def run_checkin():
                 if not ensure_login(page, username, password):
                     log(f"❌ 账号 {username} 登录失败，跳过")
                     results.append((username, False, False))
-                    context.close()
+                    close_browser_session(page, context, owns_context)
                     continue
 
                 # 执行任务
@@ -1512,8 +1594,8 @@ def run_checkin():
                 log(f"  每日签到: {'✅ 成功' if checkin_ok else '❌ 失败'}")
                 results.append((username, article_ok, checkin_ok))
 
-                context.close()
-                log(f"  浏览器上下文已关闭（session 隔离）")
+                close_browser_session(page, context, owns_context)
+                log("  浏览器上下文已关闭（session 隔离）" if owns_context else "  已关闭标签页（保留默认 profile 登录态）")
 
             except Exception as e:
                 log(f"❌ 账号 {username} 执行异常: {e}")
