@@ -5,6 +5,8 @@ __pycache__
 # build dist
 .nyc_output
 *.log
+*.lock
+/*.txt
 logs
 /dist/
 /cjs/
