@@ -10,7 +10,7 @@ except Exception:
 cron: 10 7,12,23 * * *
 new Env('WorkBuddy每日自动签到')
 
-🌱 WorkBuddy Daily - 全能签到脚本 v3.50
+🌱 WorkBuddy Daily - 全能签到脚本 v3.51
 ════════════════════════════════════════════════════════════════
 
 📌 这是什么
@@ -5719,53 +5719,47 @@ def _create_skill_share_channel(s, uid, skill):
         }
     data = payload.get("data") or {}
     share_code = str(data.get("share_code") or "").strip()
+    channel_id = str(data.get("channel_id") or "").strip()
     link = ""
     for way in data.get("ways") or []:
         if isinstance(way, dict) and way.get("share_way") == "link":
             link = str(way.get("resource_ref") or "").strip()
             break
-    if not share_code or not link:
+    if not share_code or not link or not channel_id:
         return {
             "success": False,
             "http": response.status_code,
-            "message": "分享接口缺少 share_code 或 link",
+            "message": "分享接口缺少 channel_id、share_code 或 link",
         }
     return {
         "success": True,
         "shareCode": share_code,
-        "channelId": str(data.get("channel_id") or ""),
+        "channelId": channel_id,
     }
 
 
-def _skill_share_channel_events(skill_id, skill_name, share_code):
+def _skill_share_channel_events(skill_id, skill_name, channel_id):
     common = {
         "skillId": skill_id,
         "skillName": skill_name,
         "skillType": "market",
+        "skillSource": "market",
     }
     now = int(time.time() * 1000)
     return [
         {
             "eventCode": "skill_share_channel_action",
             **common,
-            "action": "link",
-            "panelAction": "click",
-            "panelType": "clipboard",
-            "isSuccessful": True,
-            "cost": 0,
-            "id": share_code,
-            "actionAt": now,
-        },
-        {
-            "eventCode": "skill_share_channel_action",
-            **common,
-            "action": "link",
+            "action": "wechat",
             "panelAction": "success",
-            "panelType": "clipboard",
+            "panelType": "mini_program_card",
             "isSuccessful": True,
             "cost": 0,
-            "id": share_code,
+            "id": channel_id,
             "actionAt": now,
+            "entry": "skill_detail",
+            "status": "safe",
+            "actionSuccessful": True,
         },
     ]
 
@@ -5811,7 +5805,7 @@ def t_skill_share(s, uid, nick, log, snapshot=None):
         ))
         return
     events = _skill_share_channel_events(
-        skill["id"], skill["name"], result["shareCode"],
+        skill["id"], skill["name"], result["channelId"],
     )
     report_status = report_desktop_events(s, uid, nick, events)
     if report_status < 200 or report_status >= 300:
