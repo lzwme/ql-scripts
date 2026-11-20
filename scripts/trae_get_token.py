@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-@source: https://gh-proxy.org/github.com/L0NE-6/Trae-AutoCheckin/blob/main/trae_get_token.py
+@source https://gh-proxy.org/github.com/L0NE-6/Trae-AutoCheckin/blob/main/trae_get_token.py
 
 Trae Token 提取器 · trae_get_token.py
 ────────────────────────────────────────────────────────────

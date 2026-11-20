@@ -21,11 +21,11 @@
 
 'use strict';
 
-const crypto = require('node:crypto');
-const https = require('node:https');
-const path = require('node:path');
+const crypto = require('crypto');
+const https = require('https');
+const path = require('path');
 
-const API_ORIGIN = 'https://agent.minimaxi.cn';
+const API_ORIGIN = 'https://agent.minimaxi.com';
 const ALLOWED_ORIGINS = new Set([
   'https://agent.minimaxi.com',
   'https://agent.minimax.cn',
@@ -85,7 +85,7 @@ function parseRequestUrl(rawUrl, expectedPath, label, acceptedPaths = []) {
   try {
     url = new URL(cleanPastedUrl(rawUrl));
   } catch {
-    throw new Error(`${label} 不是有效的完整 URL。${rawUrl}`);
+    throw new Error(`${label} 不是有效的完整 URL。`);
   }
   if (url.protocol !== 'https:' || !ALLOWED_ORIGINS.has(url.origin) ||
       (url.pathname !== expectedPath && !acceptedPaths.includes(url.pathname))) {

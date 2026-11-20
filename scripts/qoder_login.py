@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-@source  https://gh-proxy.org/github.com/L0NE-6/Qoder-Daily/raw/refs/heads/main/qoder_login.py
+@source https://gh-proxy.org/github.com/L0NE-6/Qoder-Daily/raw/refs/heads/main/qoder_login.py
 
 🧭 Qoder 设备授权登录工具
 ------------------------------------------------------------
@@ -49,6 +49,11 @@ CAMPAIGNS_PATH = "/sash/api/v1/me/campaigns"
 MACHINE_ID_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qoder_machine_id")
 POLL_TIMEOUT = 300
 POLL_INTERVAL = 2
+MAX_NETWORK_FAILURES = 3
+
+
+class NetworkRequestFailure(RuntimeError):
+    """Raised after all transport retries for one login request fail."""
 
 
 def log(msg):
@@ -97,13 +102,25 @@ def request(method, url, headers=None, timeout=20, retries=3):
     for attempt in range(retries):
         try:
             session = requests.Session()
-            session.trust_env = False
-            return session.request(method, url, headers=headers or {}, timeout=timeout, verify=False)
+            session.trust_env = True
+            options = {
+                "headers": headers or {},
+                "timeout": timeout,
+                "verify": False,
+            }
+            proxy = os.getenv("QODER_PROXY", "").strip()
+            if proxy:
+                options["proxies"] = {"http": proxy, "https": proxy}
+            return session.request(method, url, **options)
         except Exception as error:
             last = error
             if attempt + 1 < retries:
                 time.sleep(1.5 * (attempt + 1))
-    raise RuntimeError("请求失败: %s" % last)
+    detail = str(last)
+    lowered = detail.lower()
+    if "10054" in detail or "connection reset" in lowered or "connection aborted" in lowered:
+        detail += "；直连可能被网络或代理重置，请设置 QODER_PROXY 或 HTTPS_PROXY 后重试"
+    raise NetworkRequestFailure("请求失败: %s" % detail)
 
 
 def json_of(response):
@@ -222,13 +239,24 @@ def main():
 
     deadline = time.time() + POLL_TIMEOUT
     credentials = None
+    network_failures = 0
     while time.time() < deadline:
         time.sleep(POLL_INTERVAL)
         try:
             credentials = poll_once(poll_url)
+        except NetworkRequestFailure as error:
+            network_failures += 1
+            log("⚠️ %s" % error)
+            if network_failures >= MAX_NETWORK_FAILURES:
+                print("❌ 连续 %d 次网络请求失败，已停止轮询。" % network_failures)
+                print("   请检查本机能否访问 qoder.com / openapi.qoder.sh，或设置 QODER_PROXY / HTTPS_PROXY 后重试。")
+                return 1
+            continue
         except Exception as error:
+            network_failures = 0
             log("⚠️ %s" % error)
             continue
+        network_failures = 0
         if credentials:
             break
     if not credentials:
