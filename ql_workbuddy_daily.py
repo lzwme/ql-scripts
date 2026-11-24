@@ -10,7 +10,7 @@ except Exception:
 cron: 10 7,12,23 * * *
 new Env('WorkBuddy每日自动签到')
 
-🌱 WorkBuddy Daily - 全能签到脚本 v3.51
+🌱 WorkBuddy Daily - 全能签到脚本 v3.53
 ════════════════════════════════════════════════════════════════
 
 📌 这是什么
@@ -202,7 +202,7 @@ new Env('WorkBuddy每日自动签到')
 🔒 隐私说明
    脚本不含任何账号、手机号、Token 或设备信息，所有凭据均由环境变量注入。
 """
-import sys, os, re, json, math, time, uuid, base64, glob, hashlib, hmac, glob as _glob, shutil, subprocess, threading, queue
+import sys, os, re, json, math, time, uuid, base64, glob, hashlib, hmac, glob as _glob, shutil, subprocess, threading, queue, datetime
 from urllib.parse import parse_qs, urlparse
 from contextlib import contextmanager
 import errno
@@ -224,6 +224,10 @@ except Exception:
 
 BASE = "https://www.workbuddy.cn"
 CBDOMAIN = "https://www.codebuddy.cn"   # codebuddy 域（小程序埋点 / 技能市场 / 桌面任务）
+CREDITS_PAGE_SIZE = 100
+CREDITS_PRODUCT_CODE = "p_tcaca"
+CREDITS_PACKAGE_STATUS = (0, 3)
+CREDITS_EXPIRY_WINDOW_DAYS = 365 * 101
 WEB_CONVERSATIONS_PATH = "/console/webchat/conversations"
 WEB_CONVERSATION_ACTIVE_STATUSES = ("working", "creating", "pending")
 WEB_CONVERSATION_PRUNE_KEEP = 8
@@ -2078,6 +2082,151 @@ def _clean_num(v):
     return ("%.2f" % r).rstrip("0").rstrip(".")
 
 
+def _credit_parse_end(value):
+    try:
+        return datetime.datetime.strptime(
+            str(value).strip().replace("T", " ")[:19], "%Y-%m-%d %H:%M:%S")
+    except (TypeError, ValueError):
+        return None
+
+
+def _credit_precise_num(account, key):
+    for name in (key + "Precise", key):
+        if name not in account:
+            continue
+        try:
+            number = float(account.get(name))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(number):
+            return number
+    return None
+
+
+def _credit_account_remain(account, monthly=False):
+    if ("CycleCapacityRemain" in account
+            or "CycleCapacityRemainPrecise" in account):
+        return _credit_precise_num(account, "CycleCapacityRemain")
+    if monthly:
+        return None
+    return _credit_precise_num(account, "CapacityRemain")
+
+
+def _credit_is_monthly(account):
+    try:
+        capacity_type = int(float(account.get("CapacityType")))
+    except (TypeError, ValueError):
+        capacity_type = None
+    if capacity_type is not None:
+        return capacity_type == 4
+    cycle_end = _credit_parse_end(account.get("CycleEndTime"))
+    deduction_end = _credit_parse_end(account.get("DeductionEndTime"))
+    return bool(cycle_end and deduction_end
+                and deduction_end - cycle_end > datetime.timedelta(days=2))
+
+
+def _credit_account_end(account, monthly):
+    if monthly:
+        return (_credit_parse_end(account.get("CycleEndTime"))
+                or _credit_parse_end(account.get("DeductionEndTime")))
+    return (_credit_parse_end(account.get("ExpiredTime"))
+            or _credit_parse_end(account.get("CycleEndTime")))
+
+
+def _credit_expiry_line(accounts, now=None, days=7):
+    """Format live monthly-plan and promotional-credit expiry buckets."""
+    now = now or beijing_now().replace(tzinfo=None)
+    live = []
+    for account in accounts or []:
+        if not isinstance(account, dict):
+            continue
+        monthly = _credit_is_monthly(account)
+        remain = _credit_account_remain(account, monthly)
+        if remain is None or remain <= 0:
+            continue
+        end = _credit_account_end(account, monthly)
+        if not end or (not monthly and end <= now):
+            continue
+        live.append((remain, monthly, end))
+    if not live:
+        return "", ""
+    live.sort(key=lambda item: item[2])
+    horizon = now + datetime.timedelta(days=days)
+    buckets = []
+    for remain, monthly, end in live:
+        if buckets and buckets[-1][0] == end:
+            buckets[-1][1] += remain
+            buckets[-1][2] = buckets[-1][2] or monthly
+        else:
+            buckets.append([end, remain, monthly])
+
+    def segment(bucket):
+        end, remain, monthly = bucket
+        left = (end.date() - now.date()).days
+        when = "今天" if left <= 0 else "%d 天后" % left
+        tag = "月包清零" if monthly else "到期"
+        return "%s %s %g 分（%s）" % (
+            end.strftime("%m-%d"), tag, remain, when)
+
+    soon = [bucket for bucket in buckets if bucket[0] <= horizon]
+    later = [bucket for bucket in buckets if bucket[0] > horizon]
+    parts = [segment(bucket) for bucket in soon[:2]]
+    if len(soon) > 2:
+        parts.append("%d 天内共 %d 批 %g 分" % (
+            days, len(soon), sum(bucket[1] for bucket in soon)))
+    shown = [bucket[0] for bucket in soon[:2]]
+    if later:
+        next_promo = next((bucket for bucket in later if not bucket[2]), None)
+        if next_promo and next_promo[0] not in shown:
+            parts.append(segment(next_promo))
+            shown.append(next_promo[0])
+        for bucket in later:
+            if bucket[2] and bucket[0] not in shown:
+                parts.append(segment(bucket))
+                shown.append(bucket[0])
+                break
+    line = "⏰ " + "｜".join(parts)
+    warning = ""
+    if soon:
+        warning = "⚠️ 积分到期预警：%g 分将在 %d 天内失效（最早 %s，%s）" % (
+            sum(bucket[1] for bucket in soon), days,
+            soon[0][0].strftime("%m-%d"), segment(soon[0]).rsplit("（", 1)[1][:-1])
+    return line, warning
+
+
+def _credit_extract_accounts(payload):
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        return []
+    response = data.get("Response")
+    if isinstance(response, dict):
+        inner = response.get("Data")
+        if isinstance(inner, dict) and isinstance(inner.get("Accounts"), list):
+            return inner["Accounts"]
+    return data.get("Accounts") if isinstance(data.get("Accounts"), list) else []
+
+
+def queryCreditExpiry(s):
+    """Read per-package credit expiry from the billing resource endpoint."""
+    now = beijing_now().replace(tzinfo=None)
+    end = now + datetime.timedelta(days=CREDITS_EXPIRY_WINDOW_DAYS)
+    body = {
+        "PageNumber": 1,
+        "PageSize": CREDITS_PAGE_SIZE,
+        "ProductCode": CREDITS_PRODUCT_CODE,
+        "Status": list(CREDITS_PACKAGE_STATUS),
+        "PackageEndTimeRangeBegin": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "PackageEndTimeRangeEnd": end.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    try:
+        payload = api_retry(
+            s, "POST", BASE + "/billing/meter/get-user-resource",
+            body=body, retries=3, gap=2.0).json()
+        return _credit_expiry_line(_credit_extract_accounts(payload), now)
+    except Exception as error:
+        return "", "积分到期查询失败: " + str(error)[:60]
+
+
 def queryCredits(s, meta=None):
     """积分查询：剩余积分合计 + 各套餐明细（对齐客户端 App 顶部显示的剩余积分）。
 
@@ -2102,9 +2251,16 @@ def queryCredits(s, meta=None):
                        _clean_num(remain_f), _clean_num(total_f), _clean_num(used_f)))
         if meta is not None:
             meta["total_remain"] = total_remain
-        if not out:
-            return "暂无套餐", paid
-        return ("剩余积分合计%s（%s）" % (_clean_num(total_remain), "；".join(out))), paid
+        text = ("暂无套餐" if not out
+                else "剩余积分合计%s（%s）" % (
+                    _clean_num(total_remain), "；".join(out)))
+        expiry, expiry_warning = queryCreditExpiry(s)
+        if expiry:
+            text += "\n   " + expiry
+        if meta is not None:
+            meta["expiry_line"] = expiry
+            meta["expiry_warning"] = expiry_warning
+        return text, paid
     except Exception as e:
         return "查询失败:" + str(e)[:40], False
 
@@ -6419,6 +6575,7 @@ def run_account(idx, acc, do_desktop):
                                              verify=False)).get("data") or {}).get("streak") or {})
     summary["credits"] = credits
     summary["credits_before"] = credit_meta.get("total_remain")
+    summary["credits_expiry"] = credit_meta.get("expiry_line")
     summary["usage"] = usage
     summary["streak"] = streak.get("days", "?")
     _ck = _checkin_status(s)          # 签到活动口径（与活跃连签分开显示，issue #21）
@@ -6671,6 +6828,8 @@ def build_summary(summaries):
                 _clean_num(before), _clean_num(after), sign, _clean_num(delta)))
         else:
             lines.append("   💰 %s" % (credits if credits else "暂无数据"))
+        if sm.get("credits_expiry"):
+            lines.append("   " + sm["credits_expiry"])
         lines.append("   📊 %s" % (usage if usage else "暂无数据"))
         lines.append("   🌱 等级%s | 签到连签%s天 | 活跃连签%s天 | 能量%s"
                      % (level, sm.get("checkin_streak", "?"), streak, energy))
