@@ -21,9 +21,9 @@ Trae AutoCheckin · Trae 每日自动签到（抗 9074 限流版）
   • 链式续期   refreshToken 会轮换，脚本自动回写最新值，长期不失效
   • 多账号     TRAE_ACCOUNTS(JSON) / TRAE_REFRESH_TOKEN[_N] / 桌面端凭据 三种配法均可
   • 自动解密   直接读 Trae 客户端 storage.json，免抓包免手抄 token
-  • 稳定设备   优先使用客户端真实注册的设备号（storage.json 键名里的 Aha 号），跨运行不漂移
-  • 一轮全签   默认每轮把所有未签账号全签掉，9074 时在真实设备号之间切换
-  • 抗 9074    请求体带 req_source + 设备头，且 x-device-id 必须是客户端真实注册过的号
+  • 设备分离   登录 / 续期继续使用客户端真实设备证明；签到每轮生成新的 16 位数字设备号
+  • 一轮全签   默认每轮把所有未签账号全签掉，签到、领取、回查复用本轮临时设备号
+  • 抗 9074    签到请求体为 `{}`，每轮新设备号避免长期复用同一设备指纹
   • 失败让路   本轮没签成的交给下一轮 cron 补签，不硬轰、不拖其它账号下水
   • 积分余额   签到后用 entitlement 接口查真实余额，推送里直接给数字
   • 多路推送   企业微信群机器人 / PushPlus / Telegram，多账号结果一目了然
@@ -37,14 +37,13 @@ Trae AutoCheckin · Trae 每日自动签到（抗 9074 限流版）
   • 当日状态文件 .trae_checkin_state.json —— 已签成功的账号后续运行零请求
   • HTTP 429/5xx 与 code=9074 同等对待；账号间真发过 claim 才错峰 12~25s
   • 续期带设备证明（纯标准库 ECDSA P-256 签名）：新版 ExchangeToken 缺了会报 20405
-  • 9074 绝大多数是「设备号不对」——实测同账号同时刻对照：生成的号 → 9074，
-    客户端真实注册号 → 通过设备检查；所以脚本只使用真实号，不再生成假号兜底
-  • 换号只在真实号之间切换，换不了就按账号记冷却（早窗 12 分钟 / 平时 55 分钟），冷却内零请求
+  • 9074 仍按时间窗口限流处理：本轮不反复轰接口，按账号记冷却
+    （早窗 12 分钟 / 平时 55 分钟），冷却内零请求
   • 早窗(TRAE_PEAK_HOURS，默认 0 点)自动一轮全签，其余时段每小时轮 1 个
   • cron 建议 00:23 起跑（避开 00:00~00:10 整点高峰），启动后再随机抖 0~20s
   • 实测 00:00~00:10 是全天最高峰（整点所有人一起签），cron 别用 0 分；
     本脚本启动后再随机抖 0~20s，避免同一定时任务的多个部署互相撞车
-  • 设备号优先用客户端真实号（storage.json 的 iCubeAuthInfo://icube-dc 键），拿不到才生成
+  • 签到设备号只在单轮内复用，下一轮自动更换；续期设备证明不受影响
 
 📦 环境变量
   TRAE_ACCOUNTS            多账号 JSON 数组（推荐），字段见下
@@ -53,14 +52,13 @@ Trae AutoCheckin · Trae 每日自动签到（抗 9074 限流版）
   TRAE_ACCESS_TOKEN        单账号 accessToken（可选）
   TRAE_ICUBE_AUTH          桌面端加密凭据串（可选，自动解密）
   TRAE_STORAGE_PATH        storage.json 路径（可选，自动读取并解密）
-  TRAE_DEVICE_ID[_N]       设备号（可选；优先用客户端真实设备号，本机读不到时才用这个值）
+  TRAE_DEVICE_ID[_N]       登录 / 续期设备证明用的设备号（签到会另用每轮临时 16 位号）
   TRAE_BATCH               每轮签几个账号（可选，默认 all 一轮全签；设 1 按小时轮换）
   TRAE_JITTER              启动随机抖动（可选，默认开；设 0 关闭 0~20s 错峰等待）
   TRAE_COOLDOWN_MIN        平时 9074 冷却分钟数（可选，默认 55）
   TRAE_PEAK_HOURS          早窗小时（可选，默认 0；支持 0 / 0,23 / 0-1）
   TRAE_PEAK_COOLDOWN_MIN   早窗内冷却分钟数（可选，默认 12）
   TRAE_CIRCUIT             设 1 恢复旧熔断：一个账号 9074 就全体收工（默认关）
-  TRAE_ROTATE              9074 后在真实设备号之间切换（可选，默认开；设 0 关闭）
   TRAE_VERIFY_CLAIM        领取后同设备号回查确认（可选，默认开；设 0 关闭）
   TRAE_DEVICE_BRAND        设备品牌请求头（可选，默认不发，对应桌面端 device_model）
   TRAE_DEVICE_KEY_PEM      设备 ECDSA 私钥（新版续期必需，--export-keys 导出）
@@ -68,7 +66,6 @@ Trae AutoCheckin · Trae 每日自动签到（抗 9074 限流版）
   TRAE_MACHINE_ID          设备 machineId（建议和上面一起填）
   TRAE_UID[_N]             账号标识（可选，仅用于日志）
   TRAE_ONLY                只跑指定账号：序号 / uid / 名字（可选）
-  CLAIM_TRIES              单轮 claim 重试次数（可选，默认 1，调大反而更容易被限）
   TRAE_TOKEN_CACHE         token 缓存文件路径（可选，默认 /ql/data/config/ 或脚本同目录）
   TRAE_ACCOUNT_DIR         账号 JSON 所在目录（可选，用于回写轮换后的 refreshToken）
   QYWX_TOKEN               企业微信群机器人 Webhook key（可选，也兼容 WECHAT_WEBHOOK）
@@ -81,7 +78,7 @@ Trae AutoCheckin · Trae 每日自动签到（抗 9074 限流版）
     icubeAuth                  桌面端 storage.json 里的加密串（自动解密）
     storagePath                storage.json 路径（自动读取并解密）
     uid                        账号标识（用于缓存键与日志）
-    deviceId                   设备号（可选；建议留空，脚本自动用客户端真实设备号）
+    deviceId                   登录 / 续期设备号（可选；签到不使用此字段）
     realDeviceId               客户端真实设备号（trae_get_token.py --accounts 自动带上）
     name                       备注（可选）
 
@@ -94,22 +91,21 @@ Trae AutoCheckin · Trae 每日自动签到（抗 9074 限流版）
      积分查询另用 trae_credit_monitor.py
 
 🎛 运行模式
-  一轮全签（默认）   不设 TRAE_BATCH，把所有未签账号一轮签完（9074 时在真实设备号间切换）
+  一轮全签（默认）   不设 TRAE_BATCH，把所有未签账号一轮签完（每账号使用独立临时签到设备号）
   按小时轮签         TRAE_BATCH=1 每轮只签 1 个账号，按北京时间小时轮换
   手动指定           TRAE_ONLY=3 只签第 3 个；也可填 uid 或 name
   当日去重           已签成功的账号当天不再请求接口，重复触发定时任务不浪费额度
 
 📌 特别说明
-  • 签接口按「设备号」维度判断今日是否已签；x-device-id 必须是客户端真实注册过的
-    那串十进制数字（位数不固定，15/16 位都见过），生成的号会被拒成 9074。
-  • 一个真实设备号一天只能签一个账号；N 个账号需要 N 个客户端真号。
+  • 签到接口使用每轮新建的 16 位数字 x-device-id；同一轮的状态、领取、回查必须完全一致。
+  • 每个账号每轮生成独立临时设备号；登录和续期仍使用真实设备证明。
   • refreshToken 是轮换链：每次续期都会产生新值，脚本会写回缓存与账号文件，
     请勿在多处同时使用同一账号，否则会互相使对方 token 失效。
   • 只有"refreshToken 也续期失败"才算硬失败；限流等软失败会照常推送结果。
 ────────────────────────────────────────────────────────────
 """
 
-import base64, glob, hashlib, json, os, platform, random, re, sys, time, urllib.request, urllib.error
+import base64, glob, hashlib, json, os, platform, random, re, secrets, sys, time, urllib.request, urllib.error
 
 
 # ══════════════════ TRAE_CONFIG 统一适配层 ══════════════════
@@ -194,9 +190,7 @@ def _apply_trae_config():
                          ('peakHours', 'TRAE_PEAK_HOURS'),
                          ('cooldownMin', 'TRAE_COOLDOWN_MIN'),
                          ('peakCooldownMin', 'TRAE_PEAK_COOLDOWN_MIN'),
-                         ('claimTries', 'CLAIM_TRIES'),
                          ('jitter', 'TRAE_JITTER'),
-                         ('rotate', 'TRAE_ROTATE'),
                          ('verifyClaim', 'TRAE_VERIFY_CLAIM'),
                          ('circuit', 'TRAE_CIRCUIT')):
             put(env, sch.get(key))
@@ -245,8 +239,7 @@ EP_ENTITLE = UgHost + '/trae/api/v2/pay/user_current_entitlement_list'
 AUTH_FAIL_CODES = (1001, 1002, 401, 403)    # 未认证 / token 失效 / 鉴权类 HTTP
 RATE_HTTP_CODES = (429, 500, 502, 503, 504)
 RATE_CODE = 9074                            # 参与用户太多（排队限流，可重试）
-REQ_SOURCE = 1                              # 客户端签到请求体固定带 {"req_source":1}
-REQ_BODY = '{"req_source": %d}' % REQ_SOURCE
+REQ_BODY = '{}'
 # 9004 / 9095 都表示「本设备今日已签到」，不是失败。
 ALREADY_CODES = (9004, 9095)
 QYWX_URL = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key='
@@ -524,8 +517,8 @@ def cooldown_minutes():
 
 
 def set_cooldown(key, minutes):
-    """9074 后给该账号记一个冷却时间：反正换设备号/换出口 IP 都没用（实测），
-    短时间反复戳只会刷屏，冷却到点再由 cron 补签。"""
+    """9074 后给该账号记一个冷却时间：短时间反复戳只会延长限流窗口，
+    冷却到点后下一轮会用新的临时设备号补签。"""
     st = load_state()
     st['cooldown'][str(key)] = time.strftime('%Y-%m-%d %H:%M', time.localtime(time.time() + minutes * 60))
     try:
@@ -950,6 +943,11 @@ def stable_device_id(seed):
     return str(int.from_bytes(h[:8], 'big') % (10 ** 16 - 10 ** 15) + 10 ** 15)
 
 
+def fresh_checkin_device_id():
+    """每轮签到生成一个全新的 16 位数字设备号；登录、续期仍使用真实设备证明。"""
+    return str(10 ** 15 + secrets.randbelow(9 * 10 ** 15))
+
+
 def load_device_ids():
     try:
         with open(DEVICE_ID_FILE, 'r', encoding='utf-8') as fh:
@@ -991,25 +989,6 @@ def real_device_ids():
             out.append(d)
     return out
 
-
-def rotate_device_id(acc):
-    """9074 后尝试换设备号 —— 但只能换成**客户端真实注册过的另一个号**。
-
-    实测：服务端认的是客户端注册过的那串数字，生成的号注定被拒成 9074。
-    所以这里绝不再生成假号，只在本机能读到另一个真实号时切换；
-    读不到就返回 None，由调用方冷却等待（继续烧假号只会越戳越黑）。
-    """
-    key = _acct_key(acc)
-    name = acc.get('_name') or acc.get('name') or key
-    tried = {str(acc.get('deviceId') or '').strip(), str(acc.get('_realDid') or '').strip()}
-    for d in real_device_ids():
-        if d not in tried:
-            acc['deviceId'] = d
-            acc['_realDid'] = d
-            print('🔄 [设备号] %s 换用本机客户端的另一个真实设备号 %s' % (name, d))
-            return d
-    print('ℹ️  [设备号] %s 没有可切换的其它真实设备号（生成号注定 9074，不再更换）' % name)
-    return None
 
 def device_id_for(acc, manual=''):
     """优先级：客户端真实设备号 > 手动 deviceId > 已持久化 > 生成兜底。
@@ -1062,7 +1041,7 @@ def pick_batch(pending):
     TRAE_BATCH=all 一轮全签（靠账号间错峰 + 熔断兜底），TRAE_BATCH=2 一轮签 2 个。"""
     raw = os.getenv('TRAE_BATCH', '').strip().lower()
     if raw in ('all', '0', ''):
-        return pending          # 默认一轮全签，9074 自动换号兜底
+        return pending          # 默认一轮全签，9074 由下一轮新临时设备号补签
     if pending and in_peak_hour():
         return pending        # 早窗容量最松，一轮把剩下的全签掉（账号间照常错峰）
     try:
@@ -1241,7 +1220,7 @@ def reward_credits(payload):
 
 def status_of(token, device_id):
     """返回 (checked_in, credits, enable, code, raw)；查询不通时前三项为 None。
-    请求体必须带 req_source（客户端同款），空体会被服务端拒成 9074。"""
+    请求体固定为空 JSON，本轮签到、领取和回查复用同一个临时设备号。"""
     status, text = _post(EP_STATUS, ug_headers(token, device_id), REQ_BODY)
     try:
         d = json.loads(text)
@@ -1269,37 +1248,29 @@ def is_rate(code, status):
     return code == RATE_CODE or status in RATE_HTTP_CODES
 
 
-def claim_with_retry(acc, cache):
-    """每账号每轮只发 1 次 claim（CLAIM_TRIES 可调大，但一般没必要）。
-    9074 属服务端排队限流，短时间内反复轰会被延长惩罚，失败即收工交给下轮 cron；
-    code=1001 时先续期 token 再立即重试（不占退避）。返回 (ok, code, msg, 本次积分)。"""
-    try:
-        tries = max(1, int(os.getenv('CLAIM_TRIES', '1')))
-    except Exception:
-        tries = 1
-    last = ('?', '')
-    for attempt in range(1, tries + 1):
-        status, code, msg, points = claim(acc['accessToken'], acc.get('deviceId'))
-        last = (code, msg)
+def claim_with_retry(acc, cache, device_id=None):
+    """每账号本轮只发一次 claim；仅鉴权失败时允许刷新 token 后重发一次。
+    9074 立即收工，由下一轮新的临时设备号补签。"""
+    status, code, msg, points = claim(
+        acc['accessToken'], device_id or acc.get('deviceId'))
+    if code == 0:
+        return True, code, msg, points
+    if code in ALREADY_CODES:
+        return False, code, msg, None
+    if code in AUTH_FAIL_CODES and acc.get('refreshToken'):
+        print('🔑 [claim] 检测到 code=%s，尝试刷新 token ...' % code)
+        ok, rmsg = ensure_token(acc, cache)
+        if not ok:
+            return False, code, rmsg, None
+        status, code, msg, points = claim(
+            acc['accessToken'], device_id or acc.get('deviceId'))
         if code == 0:
             return True, code, msg, points
         if code in ALREADY_CODES:
             return False, code, msg, None
-        if code in AUTH_FAIL_CODES and acc.get('refreshToken'):
-            print('🔑 [claim] 检测到 code=%s，尝试刷新 token ...' % code)
-            ok, rmsg = ensure_token(acc, cache)
-            if not ok:
-                return False, code, rmsg, None
-            continue
-        if not is_rate(code, status):
-            return False, code, msg
-        if attempt < tries:
-            wait = random.randint(4, 9)
-            print('⏳ [限流] 第%d次被限，%ds 后重试（或交给下轮 cron）...' % (attempt, wait))
-            time.sleep(wait)
-            continue
+    if is_rate(code, status):
         print('⏳ [限流] 本轮放弃，等下轮 cron 自动补签')
-    return False, last[0], last[1], None
+    return False, code, msg, None
 
 
 def credits_summary(acc):
@@ -1424,16 +1395,19 @@ def checkin_account(acc, cache):
             return result
 
     acc['deviceId'] = device_id_for(acc, acc.get('deviceId', ''))
-    print('📱 [设备号] %s: %s' % (name, acc['deviceId']))
+    checkin_device_id = fresh_checkin_device_id()
+    print('📱 [签到设备号] %s: %s' % (name, checkin_device_id))
     log_head('📡 %s 签到状态查询' % name)
 
-    checked_in, credits, enable, code, raw = status_of(acc['accessToken'], acc['deviceId'])
+    checked_in, credits, enable, code, raw = status_of(
+        acc['accessToken'], checkin_device_id)
     if code in AUTH_FAIL_CODES and acc.get('refreshToken'):
         print('🔑 [刷新] 检测到 code=%s 鉴权失败，尝试刷新 token ...' % code)
         ok, msg = ensure_token(acc, cache)
         if ok:
             print('✅ [刷新] token 已更新')
-            checked_in, credits, enable, code, raw = status_of(acc['accessToken'], acc['deviceId'])
+            checked_in, credits, enable, code, raw = status_of(
+                acc['accessToken'], checkin_device_id)
         else:
             print('❌ [刷新] 失败: %s' % msg)
     print('📊 [状态] 今日已签: %s   积分: %s   开放: %s' % (checked_in, credits, enable))
@@ -1472,12 +1446,7 @@ def checkin_account(acc, cache):
         return result
 
     result['_claimed'] = True          # 只有真正发过 claim 才需要账号间错峰
-    ok, code, msg, gained = claim_with_retry(acc, cache)
-    if code == RATE_CODE and os.getenv('TRAE_ROTATE', '1').strip() != '0':
-        # 9074 绝大多数是「设备号不对」：只有能换到客户端真实注册过的另一个号才值得重试；
-        # 换成生成的假号必然还是 9074（实测），所以 rotate_device_id 不再造假号。
-        if rotate_device_id(acc):
-            ok, code, msg, gained = claim_with_retry(acc, cache)
+    ok, code, msg, gained = claim_with_retry(acc, cache, checkin_device_id)
     if code == RATE_CODE:
         set_cooldown(_acct_key(acc), cooldown_minutes())
     if ok:
@@ -1486,7 +1455,8 @@ def checkin_account(acc, cache):
         # 为准；没翻转就不报成功，交给下一轮 cron，避免亮绿灯但实际什么都没到账。
         confirmed = False
         if os.getenv('TRAE_VERIFY_CLAIM', '1').strip() != '0':
-            checked_after, _, _, code_after, _ = status_of(acc['accessToken'], acc['deviceId'])
+            checked_after, _, _, code_after, _ = status_of(
+                acc['accessToken'], checkin_device_id)
             confirmed = checked_after is True
             if not confirmed:
                 result['icon'] = '⏳'
@@ -1504,7 +1474,8 @@ def checkin_account(acc, cache):
             result['credits'] = pts
             result['detail'] = '签到成功%s，当前余额 %s' % (gain, _fmt(pts))
         else:
-            _, credits_after, _, _, _ = status_of(acc['accessToken'], acc['deviceId'])
+            _, credits_after, _, _, _ = status_of(
+                acc['accessToken'], checkin_device_id)
             result['credits'] = credits_after if credits_after is not None else credits
             result['detail'] = '签到成功（已回查确认），积分 %s → %s' % (credits, _fmt(result['credits']))
         print('🎉 [结果] 签到成功（已回查确认）')

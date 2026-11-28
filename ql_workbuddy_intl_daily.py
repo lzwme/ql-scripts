@@ -23,11 +23,15 @@ WorkBuddy AI（国际版）每日活跃与等级任务 - 青龙脚本
      · 保活  POST /v2/chat/completions（最小流式对话，维持「账号有调用」）
      · 网页  POST /console/as/conversations/（带 prompt 建会话）
        —— 上游「当日活跃」计数只认这一发（桌面端对话与 /v2/report 都不进该计数）
-  4. 等级任务（可选，默认执行）：
+  4. 等级任务（默认只读）：
      · 读取 GET /activity/growth/tasks（等级族，按 code 识别）
-     · first_chat / skill_installed / expert_summoned / template_used
-       先执行真实动作，再按服务端 status 回读；未确认完成绝不 claim
+     · 官方国际版 provider 标记 growth=false，没有等级任务结算协议；
+       默认只读并在服务端已 completed 时领奖，不发送国内成长事件
+     · --experimental-intl-tasks 仅供抓包实验，事件成功不等于任务完成
      · wechat_linked 只检测并提示在官方客户端绑定微信，不伪造完成
+  5. 积分回读：
+     · POST /billing/meter/get-user-resource-summary 读取剩余积分合计
+     · 报告操作前后余额；只有余额增长或明确领取回执才说积分到账
 
 口径说明：
   - 活动未开放是**正常状态**，不会当成失败；
@@ -40,7 +44,7 @@ WorkBuddy AI（国际版）每日活跃与等级任务 - 青龙脚本
   WORKBUDDY_TOKEN        单账号兜底（国际版登录态）
   WORKBUDDY_INTL_MODELS  可选，保活模型链，逗号分隔；默认官方免费的四个
   QYWX_TOKEN             企业微信机器人（也兼容 WECHAT_WEBHOOK）
-  PLUSPLUS_TOKEN         PushPlus
+  PLUSPLUS_TOKEN         PushPlus（兼容 PUSHPLUS_TOKEN 别名）
   NO_NOTIFY              设 1 关闭推送
 
 用法：
@@ -49,6 +53,7 @@ WorkBuddy AI（国际版）每日活跃与等级任务 - 青龙脚本
   python workbuddy_intl_daily.py --no-keepalive   # 只探测、领取与活跃上报；跳过保活、网页会话及依赖它的等级任务
   python workbuddy_intl_daily.py --report-only    # 只发 /v2/report 活跃上报，不领取任务或奖励
   python workbuddy_intl_daily.py --no-tasks       # 跳过图片中的 5 个等级任务
+  python workbuddy_intl_daily.py --experimental-intl-tasks  # 仅抓包实验
 """
 
 import base64
@@ -80,6 +85,7 @@ CLIENT_VERSION = "5.5.2"
 CLI_VERSION = "2.137.1"
 UA = "WorkBuddy/%s WorkBuddy AI/%s CLI/%s" % (CLIENT_VERSION, CLIENT_VERSION, CLI_VERSION)
 DEFAULT_MODELS = ("deepseek-v4.1-flash", "hy3", "hy4-preview", "hy4-preview-f")
+SYSTEM_PROMPT = "You are a helpful assistant."
 
 # 活跃链路的三个端点（见文件头「活跃」一节）
 REPORT_PATH = "/v2/report"
@@ -87,6 +93,7 @@ STREAK_PATH = "/activity/growth/streak"
 WEB_CONVERSATIONS_PATH = "/console/as/conversations/"
 WEB_TASK_CONVERSATIONS_PATH = "/console/webchat/conversations"
 WEB_TASK_SCENES_PATH = "/v2/as/support/scenes?locale=en"
+CREDIT_SUMMARY_PATH = "/billing/meter/get-user-resource-summary"
 GROWTH_TASKS_SOURCES = (
     ("level", "/activity/growth/tasks", "level"),
     ("desktop", "/v2/activity/growth/tasks", None),
@@ -127,6 +134,7 @@ ONLY = None
 NO_KEEPALIVE = False
 REPORT_ONLY = False
 NO_TASKS = False
+EXPERIMENTAL_INTL_TASKS = False
 
 
 HELP_TEXT = """用法:
@@ -140,6 +148,9 @@ HELP_TEXT = """用法:
                     仍保留只读风控预检与必要令牌续期
   --no-tasks        跳过 first_chat / skill_installed / wechat_linked /
                     expert_summoned / template_used 五个等级任务
+  --experimental-intl-tasks
+                    仅用于抓包/回归实验：允许向国际版发送国内成长任务事件；
+                    默认只读，不发送没有官方国际版协议依据的事件
   -h, --help        显示本帮助
 """
 
@@ -179,6 +190,69 @@ def api_headers(token, uid, accept=None):
     if uid:
         headers["X-User-Id"] = uid
     return headers
+
+
+def _credit_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number and abs(number) != float("inf") else None
+
+
+def query_credit_total(token, uid):
+    """读取国际版剩余积分合计；返回 (数值或 None, 错误说明)。"""
+    try:
+        session = requests.Session()
+        session.trust_env = False
+        response = session.post(
+            BASE + CREDIT_SUMMARY_PATH,
+            headers=api_headers(token, uid),
+            json={},
+            timeout=20,
+            verify=False,
+        )
+        payload = json_of(response)
+        _check_growth_response(response, payload)
+        code = payload.get("code") if isinstance(payload, dict) else None
+        if response.status_code != 200 or not _growth_code_ok(code):
+            return None, "HTTP %s code=%s" % (response.status_code, code)
+        data = payload.get("data") if isinstance(payload, dict) else None
+        data = data if isinstance(data, dict) else {}
+        packages = data.get("Packages")
+        if packages is None:
+            packages = data.get("packages")
+        if not isinstance(packages, list):
+            return None, "未返回 Packages"
+        total = 0.0
+        for package in packages:
+            if not isinstance(package, dict):
+                continue
+            value = None
+            for key in ("CycleRemainCapacityPrecise", "CycleRemainCapacity"):
+                if key in package:
+                    value = _credit_number(package.get(key))
+                    if value is not None:
+                        break
+            if value is not None:
+                total += value
+        return total, ""
+    except (AccountRestricted, UnapprovedChannel):
+        raise
+    except Exception as error:
+        return None, str(error)[:100]
+
+
+def credit_delta_text(before, after, before_error="", after_error=""):
+    if before is None:
+        return "积分未回读（%s）" % (before_error or "未知原因")
+    if after is None:
+        return "操作前 %g，操作后未回读（%s）" % (before, after_error or "未知原因")
+    delta = after - before
+    if abs(delta) < 1e-9:
+        return "积分 %g → %g（本轮无变化）" % (before, after)
+    return "积分 %g → %g（本轮 %s%g）" % (
+        before, after, "+" if delta > 0 else "", delta)
 
 
 def chat_headers(token, uid):
@@ -560,7 +634,10 @@ def web_task_conversation_session(token, uid, prompt, metadata=None):
     last_error = ""
     for model in model_chain():
         body = {
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
             "model": model,
             "stream": True,
             "conversationId": conversation_id,
@@ -823,7 +900,7 @@ def report_growth_events(token, uid, events):
     payload = json_of(response)
     _check_growth_response(response, payload)
     code = payload.get("code") if isinstance(payload, dict) else None
-    if response.status_code == 200 and _growth_code_ok(code):
+    if response.status_code == 200 and code == 0:
         return True, "任务事件已上报（%d 条）" % len(body)
     return False, "任务事件未确认 HTTP %s code=%s" % (response.status_code, code)
 
@@ -1340,8 +1417,10 @@ def _wait_growth_task(token, uid, task_code, attempts=3, gap=3):
     return row
 
 
-def run_growth_tasks(token, uid, log_fn=log, allow_web=True):
+def run_growth_tasks(token, uid, log_fn=log, allow_web=True, experimental=None):
     """执行图片中的 5 个等级任务，返回可加入推送的结果列表。"""
+    experimental = (EXPERIMENTAL_INTL_TASKS if experimental is None
+                    else bool(experimental))
     rows, errors = fetch_growth_tasks(token, uid)
     if errors:
         log_fn("   ⚠️等级任务列表部分失败: %s" % "；".join(errors))
@@ -1382,6 +1461,12 @@ def run_growth_tasks(token, uid, log_fn=log, allow_web=True):
             claim_ok, claim_note = claim_growth_task(token, uid, task_code)
             log_fn("   %s%s: %s" % ("🎁" if claim_ok else "⚠️", label, claim_note))
             results.append((task_code, claim_note))
+            continue
+        if not experimental:
+            state = growth_task_progress_text(row)
+            note = "国际版上游未开放自动任务事件，只读（%s）" % state
+            log_fn("   ℹ️%s: %s" % (label, note))
+            results.append((task_code, note))
             continue
         if not allow_web:
             log_fn("   ⏭️%s: 已跳过（--no-keepalive 禁止网页对话）" % label)
@@ -1549,8 +1634,14 @@ def claim_daily(token, uid):
     message = first_text(payload.get("msg"), payload.get("message"))
     if response.status_code == 200 and code == 0:
         data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-        gained = data.get("credits", data.get("reward", data.get("amount")))
-        return True, ("领取成功 +%s" % gained) if gained else "领取成功"
+        gained = data.get(
+            "credit",
+            data.get("credits", data.get("reward", data.get("amount"))),
+        )
+        delayed = bool(data.get("credit_delayed", data.get("creditDelayed")))
+        if delayed:
+            return True, "领取成功，积分待入账"
+        return True, ("领取成功 +%s" % gained) if gained else "领取成功（未返回积分数）"
     duplicate = ("已签" in message) or ("已领" in message) or ("already" in message.lower())
     if response.status_code in (400, 409) and duplicate:
         return True, "今日已领取"
@@ -1558,10 +1649,10 @@ def claim_daily(token, uid):
 
 
 def day_completed_note(message, available, active, checked, claim_ok, report_ok, web_ok):
-    """活动未开启、但活跃链路已完成时，把结果文案改成「今日活跃已完成」。
+    """活动未开启但活跃链路有回执时，明确区分「活跃已更新」与「积分已到账」。
 
-    上游 v3.0.8 的判定（issue #277）：活跃上报或网页会话任一成功即算当日活跃
-    完成，积分由上游按活跃异步发放；只保活对话成功不算（它只维持「账号有调用」）。
+    活跃上报或网页会话成功只能证明活跃链路被接受；没有 daily-checkin 成功回执
+    或积分余额增长时，不能推断积分已经发放。
     """
     if claim_ok or not (report_ok or web_ok):
         return message
@@ -1571,8 +1662,9 @@ def day_completed_note(message, available, active, checked, claim_ok, report_ok,
     if web_ok:
         reasons.append("网页会话已建")
     if not (available and active and not checked):
-        return "活动未开启，但今日活跃已完成（%s；积分由上游异步发放）" % "、".join(reasons)
-    return "%s；但今日活跃已完成（%s）" % (message, "、".join(reasons))
+        return "活动未开启；活跃链路已更新（%s），未调用每日签到，积分未确认" % "、".join(reasons)
+    return "%s；活跃链路已更新（%s），但未取得签到奖励回执，积分未确认" % (
+        message, "、".join(reasons))
 
 
 def keepalive(token, uid):
@@ -1584,7 +1676,7 @@ def keepalive(token, uid):
             "stream": True,
             "max_tokens": 16,
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": "hi"},
             ],
         }
@@ -2007,21 +2099,23 @@ def notify(text, title="WorkBuddy AI 每日活跃与等级任务"):
                           json={"msgtype": "text", "text": {"content": title + "\n" + raw}}, timeout=15)
         except Exception as error:
             log("⚠️ 企业微信推送失败: %s" % error)
-    token = os.getenv("PLUSPLUS_TOKEN", "").strip()
+    token = (os.getenv("PLUSPLUS_TOKEN", "").strip()
+             or os.getenv("PUSHPLUS_TOKEN", "").strip())
     if token:
         try:
-            requests.post("http://www.pushplus.plus/send",
+            requests.post("https://www.pushplus.plus/send",
                           json={"token": token, "title": title, "content": raw, "template": "txt"}, timeout=15)
         except Exception as error:
             log("⚠️ PushPlus 推送失败: %s" % error)
 
 
 def main():
-    global ONLY, NO_KEEPALIVE, REPORT_ONLY, NO_TASKS
+    global ONLY, NO_KEEPALIVE, REPORT_ONLY, NO_TASKS, EXPERIMENTAL_INTL_TASKS
     ONLY = None
     NO_KEEPALIVE = False
     REPORT_ONLY = False
     NO_TASKS = False
+    EXPERIMENTAL_INTL_TASKS = False
     args = sys.argv[1:]
     if "--help" in args or "-h" in args:
         print(HELP_TEXT, end="")
@@ -2032,6 +2126,8 @@ def main():
         REPORT_ONLY = True
     if "--no-tasks" in args:
         NO_TASKS = True
+    if "--experimental-intl-tasks" in args:
+        EXPERIMENTAL_INTL_TASKS = True
     if "--only" in args:
         try:
             ONLY = int(args[args.index("--only") + 1])
@@ -2059,6 +2155,12 @@ def main():
     elif NO_TASKS:
         log("⏭️ --no-tasks：跳过 first_chat / skill_installed / wechat_linked / "
             "expert_summoned / template_used 五个等级任务")
+    elif EXPERIMENTAL_INTL_TASKS:
+        log("🧪 --experimental-intl-tasks：仅用于抓包实验；国际版官方没有等级任务"
+            "结算协议，事件成功不代表任务完成或积分到账")
+    else:
+        log("ℹ️ 国际版等级任务默认只读：官方 provider 标记 growth=false，"
+            "不发送国内成长任务事件；如已完成仍会按服务端回读领奖")
 
     lines = []
     for index, account in enumerate(accounts, 1):
@@ -2069,13 +2171,28 @@ def main():
             hydrated = _hydrate_account_from_store(account, log)
             _prepare_account_for_run(account, hydrated, log)
             if REPORT_ONLY:
+                credits_before, credits_before_error = query_credit_total(
+                    account["token"], account["uid"])
                 report_ok, report_note = report_activity(account["token"], account["uid"])
                 log("   %s 活跃上报: %s" % ("✅" if report_ok else "⚠️", report_note))
-                lines.append("账号%d %s：report-only，不领取任务/奖励；活跃上报%s" % (
+                credits_after, credits_after_error = query_credit_total(
+                    account["token"], account["uid"])
+                credit_text = credit_delta_text(
+                    credits_before, credits_after,
+                    credits_before_error, credits_after_error)
+                log("   💰 %s" % credit_text)
+                lines.append("账号%d %s：report-only，不领取任务/奖励；活跃上报%s；%s" % (
                     index, account["note"],
-                    ("成功（%s）" % report_note) if report_ok else ("未成功（%s）" % report_note)))
+                    ("成功（%s）" % report_note) if report_ok else ("未成功（%s）" % report_note),
+                    credit_text))
                 time.sleep(2)
                 continue
+            credits_before, credits_before_error = query_credit_total(
+                account["token"], account["uid"])
+            if credits_before is None:
+                log("   💰 操作前积分回读失败: %s" % (credits_before_error or "未知原因"))
+            else:
+                log("   💰 操作前剩余积分: %g" % credits_before)
             available, active, checked, note = detect_activity(account["token"], account["uid"])
             log("   探测: %s" % note)
             claim_ok = False
@@ -2101,7 +2218,8 @@ def main():
             if not NO_TASKS:
                 task_results = run_growth_tasks(
                     account["token"], account["uid"], log,
-                    allow_web=not NO_KEEPALIVE)
+                    allow_web=not NO_KEEPALIVE,
+                    experimental=EXPERIMENTAL_INTL_TASKS)
             if task_results:
                 task_text = "；".join(
                     "%s=%s" % (GROWTH_TASK_LABELS.get(code, code), result)
@@ -2109,11 +2227,18 @@ def main():
                 )
             else:
                 task_text = "未执行或未下发"
-            lines.append("账号%d %s：%s；活跃上报%s；保活%s；网页会话%s" % (
+            credits_after, credits_after_error = query_credit_total(
+                account["token"], account["uid"])
+            credit_text = credit_delta_text(
+                credits_before, credits_after,
+                credits_before_error, credits_after_error)
+            log("   💰 %s" % credit_text)
+            lines.append("账号%d %s：%s；活跃上报%s；保活%s；网页会话%s；%s" % (
                 index, account["note"], message,
                 ("成功（%s）" % report_note) if report_ok else ("未成功（%s）" % report_note),
                 ("成功（%s）" % keep_note) if keep_ok else ("未成功（%s）" % keep_note),
-                ("成功（%s）" % web_note) if web_ok else ("未成功（%s）" % web_note))
+                ("成功（%s）" % web_note) if web_ok else ("未成功（%s）" % web_note),
+                credit_text)
                 + "；等级任务：" + task_text)
         except UnapprovedChannel as error:
             log("   🚫 %s：请求内容/渠道指纹被拒，不刷新、不重试；请检查 system prompt 与脱敏规则" % error)

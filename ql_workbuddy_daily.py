@@ -10,7 +10,7 @@ except Exception:
 cron: 10 7,12,23 * * *
 new Env('WorkBuddy每日自动签到')
 
-🌱 WorkBuddy Daily - 全能签到脚本 v3.53
+🌱 WorkBuddy Daily - 全能签到脚本 v3.55
 ════════════════════════════════════════════════════════════════
 
 📌 这是什么
